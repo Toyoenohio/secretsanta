@@ -1,0 +1,10 @@
+---
+/** Pure-CSS garland of blinking bulbs strung across the top of every page. */
+const bulbs = Array.from({ length: 60 });
+---
+
+<div class="xmas-lights" aria-hidden="true">
+  <ul>
+    {bulbs.map(() => <li />)}
+  </ul>
+</div>

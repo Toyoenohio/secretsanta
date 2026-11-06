@@ -1,0 +1,284 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCurrentUser } from '../lib/auth';
+import { sql, type WishlistItem } from '../lib/db';
+
+const user = await getCurrentUser(Astro.cookies);
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+const isWelcome = Astro.url.searchParams.get('welcome') === '1';
+
+const items = (await sql`
+  SELECT
+    id, user_id, title, notes, url, priority, estimated_price, created_at
+  FROM wishlist_items
+  WHERE user_id = ${user.id}
+  ORDER BY
+    CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC,
+    created_at DESC
+`) as WishlistItem[];
+
+const priorityBadge: Record<string, { label: string; badgeClass: string }> = {
+  high: {
+    label: 'Prioridad alta',
+    badgeClass: 'status-pill status-pill-accent',
+  },
+  medium: {
+    label: 'Prioridad media',
+    badgeClass: 'status-pill status-pill-warning',
+  },
+  low: {
+    label: 'Idea opcional',
+    badgeClass: 'status-pill status-pill-success',
+  },
+};
+---
+
+<Layout title="Mi wishlist" user={user} activeTab="wishlist">
+  <div class="page-frame pt-8 pb-16 space-y-8">
+    {isWelcome && (
+      <section class="field-band rounded-[14px] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <h2 class="type-lead">Cuenta creada con éxito, {user.nickname || user.name}</h2>
+          <p class="type-small" style="color: var(--field-muted);">
+            Agrega tus primeros deseos aquí en solo texto o texto con enlace URL, o ve directamente a tus salas.
+          </p>
+        </div>
+        <a href="/" class="btn-secondary shrink-0 self-start sm:self-center">
+          Ir a mis salas
+        </a>
+      </section>
+    )}
+
+    <section class="surface-panel space-y-2">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h1 class="type-h2">Mi wishlist global</h1>
+        <span class="status-pill status-pill-accent">Visible solo para tu amigo secreto</span>
+      </div>
+      <p class="type-body" style="color: var(--muted);">
+        Agrega ideas de regalo tanto en solo texto como texto acompañado de una URL. Solo la persona que saque tu papelito podrá consultar esta lista.
+      </p>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <!-- Add wish form -->
+      <section class="lg:col-span-5 surface-panel lg:sticky lg:top-8 space-y-5">
+        <div class="space-y-1">
+          <h2 class="type-lead">Añadir nuevo deseo</h2>
+          <p class="type-small" style="color: var(--muted);">
+            Completa el título y opcionalmente pega un enlace de referencia.
+          </p>
+        </div>
+
+        <div
+          id="wish-error"
+          class="hidden p-3.5 rounded-[8px] type-small"
+          style="background-color: var(--danger-bg); color: var(--danger-ink);"
+        ></div>
+
+        <form id="add-wish-form" class="space-y-4">
+          <div>
+            <label for="wish-title-input" class="block type-small mb-1.5">
+              ¿Qué te gustaría recibir? (Texto) *
+            </label>
+            <input
+              id="wish-title-input"
+              type="text"
+              name="title"
+              required
+              placeholder="Ej. Audífonos inalámbricos o novela histórica"
+            />
+          </div>
+
+          <div>
+            <label for="wish-url-input" class="block type-small mb-1.5">
+              Enlace URL de referencia (opcional)
+            </label>
+            <input
+              id="wish-url-input"
+              type="text"
+              name="url"
+              placeholder="https://tienda.com/producto..."
+            />
+            <p class="type-small mt-1" style="color: var(--muted);">
+              Déjalo vacío si prefieres una entrada de solo texto.
+            </p>
+          </div>
+
+          <div>
+            <label for="wish-notes-input" class="block type-small mb-1.5">
+              Detalles adicionales (color, talla, edición)
+            </label>
+            <textarea
+              id="wish-notes-input"
+              name="notes"
+              rows="2"
+              placeholder="Ej. Color negro mate, talla M o cualquier marca equivalente..."
+            ></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label for="wish-priority-select" class="block type-small mb-1.5">
+                Prioridad
+              </label>
+              <select id="wish-priority-select" name="priority">
+                <option value="high">Prioridad alta</option>
+                <option value="medium" selected>Prioridad media</option>
+                <option value="low">Idea opcional</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="wish-price-input" class="block type-small mb-1.5">
+                Precio aproximado
+              </label>
+              <input
+                id="wish-price-input"
+                type="text"
+                name="estimated_price"
+                placeholder="Ej. 25 a 35 USD"
+              />
+            </div>
+          </div>
+
+          <button type="submit" id="add-wish-btn" class="btn-primary w-full">
+            Añadir a mi wishlist
+          </button>
+        </form>
+      </section>
+
+      <!-- Wishlist items list -->
+      <section class="lg:col-span-7 space-y-4">
+        <div class="flex items-center justify-between">
+          <h2 class="type-lead">Deseos guardados ({items.length})</h2>
+        </div>
+
+        {items.length === 0 ? (
+          <div class="surface-panel py-12 text-center space-y-2">
+            <h3 class="type-lead">Tu wishlist aún no tiene deseos</h3>
+            <p class="type-body mx-auto" style="color: var(--muted);">
+              Usa el formulario para agregar ideas de regalo en solo texto o acompañadas de una URL.
+            </p>
+          </div>
+        ) : (
+          <div class="space-y-4">
+            {items.map((item) => {
+              const badge = priorityBadge[item.priority] || priorityBadge.medium;
+              return (
+                <div class="surface-card flex items-start justify-between gap-4">
+                  <div class="space-y-2 flex-1 min-w-0">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <span class={badge.badgeClass}>{badge.label}</span>
+                      {item.estimated_price && (
+                        <span class="status-pill tabular">{item.estimated_price}</span>
+                      )}
+                      {item.url ? (
+                        <span class="status-pill status-pill-accent">Texto + URL</span>
+                      ) : (
+                        <span class="status-pill">Solo texto</span>
+                      )}
+                    </div>
+
+                    <h3 class="type-lead">{item.title}</h3>
+
+                    {item.notes && (
+                      <p class="type-small whitespace-pre-line" style="color: var(--muted);">
+                        {item.notes}
+                      </p>
+                    )}
+
+                    {item.url && (
+                      <div class="pt-1">
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="inline-flex items-center gap-2 type-small font-medium underline"
+                          style="color: var(--accent);"
+                        >
+                          <span class="truncate max-w-[260px] sm:max-w-[380px]">{item.url}</span>
+                          <span>Abrir enlace</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    data-delete-id={item.id}
+                    title="Eliminar deseo"
+                    class="btn-ghost delete-wish-btn shrink-0"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  </div>
+
+  <script is:inline>
+    const form = document.getElementById('add-wish-form');
+    const errorBox = document.getElementById('wish-error');
+    const addBtn = document.getElementById('add-wish-btn');
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!errorBox || !addBtn) return;
+      errorBox.classList.add('hidden');
+      addBtn.disabled = true;
+      addBtn.textContent = 'Guardando...';
+
+      const formData = new FormData(form);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const res = await fetch('/api/wishlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorBox.textContent = data.error || 'Error al guardar el deseo.';
+          errorBox.classList.remove('hidden');
+          addBtn.disabled = false;
+          addBtn.textContent = 'Añadir a mi wishlist';
+          return;
+        }
+        window.location.href = '/wishlist';
+      } catch {
+        errorBox.textContent = 'Error de conexión.';
+        errorBox.classList.remove('hidden');
+        addBtn.disabled = false;
+        addBtn.textContent = 'Añadir a mi wishlist';
+      }
+    });
+
+    document.querySelectorAll('.delete-wish-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-delete-id');
+        if (!id) return;
+        btn.disabled = true;
+        try {
+          const res = await fetch('/api/wishlist', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+          });
+          if (res.ok) {
+            window.location.reload();
+          }
+        } catch {
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</Layout>

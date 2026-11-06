@@ -1,0 +1,317 @@
+---
+/**
+ * Full-site snowfall on a single fixed canvas.
+ * Flakes fall with drift and wind; when they reach the bottom of the screen
+ * they settle into a height map that piles up, slides to an angle of repose
+ * and is kept (per tab) between page navigations. Sweep the pile with the
+ * mouse to clear it. Respects prefers-reduced-motion and a header toggle.
+ */
+---
+
+<canvas id="snow-canvas" class="snow-canvas" aria-hidden="true"></canvas>
+
+<script is:inline>
+  (function () {
+    const canvas = document.getElementById('snow-canvas');
+    if (!canvas || !canvas.getContext) return;
+    const ctx = canvas.getContext('2d');
+
+    const PREF_KEY = 'ss_snow';
+    const PILE_KEY = 'ss_snow_pile';
+    const COL = 4; // px per pile column
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    let enabled = localStorage.getItem(PREF_KEY) !== 'off';
+    let W = 0, H = 0, dpr = 1, cols = 0, maxPile = 80, groundOffset = 0;
+    let pile = new Float32Array(0);
+    let capNoise = new Float32Array(0);
+    let flakes = [];
+    let puffs = [];
+    let wind = 0, windTarget = 0, windTimer = 0;
+    let raf = 0, last = 0;
+
+    // Pre-rendered flake sprite: white core with a faint cool halo so it reads on light backgrounds too
+    const sprite = document.createElement('canvas');
+    sprite.width = sprite.height = 32;
+    (function () {
+      const s = sprite.getContext('2d');
+      const g = s.createRadialGradient(16, 16, 0, 16, 16, 16);
+      g.addColorStop(0, 'rgba(255,255,255,1)');
+      g.addColorStop(0.45, 'rgba(255,255,255,0.95)');
+      g.addColorStop(0.62, 'rgba(120,138,155,0.35)');
+      g.addColorStop(1, 'rgba(120,138,155,0)');
+      s.fillStyle = g;
+      s.beginPath();
+      s.arc(16, 16, 16, 0, Math.PI * 2);
+      s.fill();
+    })();
+
+    function measureGround() {
+      // Snow lands on top of a fixed bottom bar (mobile nav) instead of hiding it
+      const el = document.querySelector('[data-snow-ground]');
+      groundOffset = 0;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && getComputedStyle(el).display !== 'none' && r.bottom >= window.innerHeight - 1) {
+          groundOffset = Math.round(r.height);
+        }
+      }
+    }
+
+    function resize() {
+      const oldPile = pile, oldCols = cols, oldMax = maxPile;
+      W = window.innerWidth;
+      H = window.innerHeight;
+      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      measureGround();
+      maxPile = W < 640 ? 44 : W < 1024 ? 62 : 78;
+      cols = Math.ceil(W / COL) + 2;
+      pile = new Float32Array(cols);
+      capNoise = new Float32Array(cols);
+      const seed = Math.random() * 100;
+      for (let i = 0; i < cols; i++) {
+        capNoise[i] = 0.78 + 0.12 * Math.sin(i * 0.045 + seed) + 0.1 * Math.sin(i * 0.13 + seed * 2);
+      }
+      if (oldCols > 0) {
+        for (let i = 0; i < cols; i++) {
+          const j = Math.min(oldCols - 1, Math.floor((i / cols) * oldCols));
+          pile[i] = (oldPile[j] / oldMax) * maxPile;
+        }
+      }
+
+      const target = Math.min(W < 640 ? 90 : 200, Math.round((W * H) / 8000));
+      while (flakes.length < target) flakes.push(makeFlake(true));
+      flakes.length = target;
+    }
+
+    function makeFlake(anywhere) {
+      const depth = Math.random(); // 0 far, 1 near
+      return {
+        x: Math.random() * W,
+        y: anywhere ? Math.random() * H : -10 - Math.random() * 40,
+        r: 1 + depth * 2.6,
+        vy: 28 + depth * 52,
+        amp: 10 + Math.random() * 22,
+        freq: 0.6 + Math.random() * 1.2,
+        phase: Math.random() * Math.PI * 2,
+        alpha: 0.55 + depth * 0.45,
+      };
+    }
+
+    const SPREAD = [0.3, 0.65, 1, 0.65, 0.3];
+    function deposit(x, r) {
+      const c = Math.round(x / COL);
+      const amount = r * 0.8;
+      for (let k = -2; k <= 2; k++) {
+        const i = c + k;
+        if (i < 0 || i >= cols) continue;
+        pile[i] = Math.min(maxPile * capNoise[i], pile[i] + amount * SPREAD[k + 2]);
+      }
+    }
+
+    function settle() {
+      // Angle of repose: steep steps slide sideways so drifts look natural
+      for (let i = 0; i < cols - 1; i++) {
+        const d = pile[i] - pile[i + 1];
+        if (d > 2.2) { const t = d * 0.22; pile[i] -= t; pile[i + 1] += t; }
+        else if (d < -2.2) { const t = -d * 0.22; pile[i] += t; pile[i + 1] -= t; }
+      }
+    }
+
+    function groundAt(x) {
+      const i = Math.max(0, Math.min(cols - 1, Math.round(x / COL)));
+      return H - groundOffset - pile[i];
+    }
+
+    function update(dt) {
+      windTimer -= dt;
+      if (windTimer <= 0) { windTarget = (Math.random() - 0.5) * 40; windTimer = 4 + Math.random() * 6; }
+      wind += (windTarget - wind) * Math.min(1, dt * 0.5);
+
+      for (let n = 0; n < flakes.length; n++) {
+        const f = flakes[n];
+        f.phase += f.freq * dt;
+        f.x += (wind * (0.4 + f.r / 4) + Math.sin(f.phase) * f.amp) * dt;
+        f.y += f.vy * dt;
+        if (f.x < -10) f.x += W + 20;
+        else if (f.x > W + 10) f.x -= W + 20;
+        if (f.y + f.r >= groundAt(f.x)) {
+          deposit(f.x, f.r);
+          flakes[n] = makeFlake(false);
+        }
+      }
+
+      for (let n = puffs.length - 1; n >= 0; n--) {
+        const p = puffs[n];
+        p.vy += 420 * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.life -= dt;
+        if (p.life <= 0) puffs.splice(n, 1);
+      }
+
+      settle();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+
+      // Falling flakes
+      for (let n = 0; n < flakes.length; n++) {
+        const f = flakes[n];
+        const s = f.r * 4;
+        ctx.globalAlpha = f.alpha;
+        ctx.drawImage(sprite, f.x - s / 2, f.y - s / 2, s, s);
+      }
+      for (let n = 0; n < puffs.length; n++) {
+        const p = puffs[n];
+        const s = p.r * 4;
+        ctx.globalAlpha = Math.max(0, p.life / p.max);
+        ctx.drawImage(sprite, p.x - s / 2, p.y - s / 2, s, s);
+      }
+      ctx.globalAlpha = 1;
+
+      drawPile();
+    }
+
+    function drawPile() {
+      const base = H - groundOffset;
+      let peak = 0;
+      for (let i = 0; i < cols; i++) if (pile[i] > peak) peak = pile[i];
+      if (peak < 0.4) return;
+
+      ctx.beginPath();
+      ctx.moveTo(0, base);
+      ctx.lineTo(0, base - pile[0]);
+      for (let i = 1; i < cols - 1; i++) {
+        const x = i * COL, y = base - pile[i];
+        const nx = (i + 1) * COL, ny = base - pile[i + 1];
+        ctx.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2);
+      }
+      ctx.lineTo(W, base - pile[cols - 1]);
+      ctx.lineTo(W, base);
+      ctx.closePath();
+
+      const g = ctx.createLinearGradient(0, base - peak, 0, base);
+      g.addColorStop(0, '#ffffff');
+      g.addColorStop(0.55, '#f3f7fa');
+      g.addColorStop(1, '#dde7ee');
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      // Crisp, slightly blue rim so the drift reads against pale pages
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = 'rgba(110,132,152,0.45)';
+      ctx.stroke();
+    }
+
+    function frame(t) {
+      const dt = Math.min(0.05, (t - (last || t)) / 1000);
+      last = t;
+      update(dt);
+      draw();
+      raf = requestAnimationFrame(frame);
+    }
+
+    function start() {
+      canvas.style.display = '';
+      if (reduced) {
+        // Static winter: a calm drift and a few resting flakes, no motion
+        for (let i = 0; i < cols; i++) pile[i] = Math.max(pile[i], maxPile * 0.35 * capNoise[i]);
+        for (let k = 0; k < 6; k++) settle();
+        ctx.clearRect(0, 0, W, H);
+        drawPile();
+        return;
+      }
+      if (!raf) { last = 0; raf = requestAnimationFrame(frame); }
+    }
+
+    function stop() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      ctx.clearRect(0, 0, W, H);
+      canvas.style.display = 'none';
+    }
+
+    // Sweep: moving the mouse through the drift scatters it
+    window.addEventListener('pointermove', function (e) {
+      if (!enabled || reduced || e.pointerType === 'touch') return;
+      const base = H - groundOffset;
+      const c = Math.round(e.clientX / COL);
+      if (c < 0 || c >= cols || e.clientY < base - pile[c] - 6 || e.clientY > base) return;
+      for (let k = -7; k <= 7; k++) {
+        const i = c + k;
+        if (i < 0 || i >= cols) continue;
+        const take = pile[i] * 0.18 * (1 - Math.abs(k) / 8);
+        pile[i] -= take;
+      }
+      for (let k = 0; k < 3; k++) {
+        const life = 0.5 + Math.random() * 0.5;
+        puffs.push({
+          x: e.clientX + (Math.random() - 0.5) * 20,
+          y: base - pile[c],
+          vx: (e.movementX || 0) * 6 + (Math.random() - 0.5) * 120,
+          vy: -120 - Math.random() * 160,
+          r: 1 + Math.random() * 2,
+          life: life,
+          max: life,
+        });
+      }
+    }, { passive: true });
+
+    // Keep the drift between page navigations in this tab
+    function savePile() {
+      try {
+        const step = Math.max(1, Math.floor(cols / 240));
+        const out = [];
+        for (let i = 0; i < cols; i += step) out.push(Math.round((pile[i] / maxPile) * 1000) / 1000);
+        sessionStorage.setItem(PILE_KEY, JSON.stringify(out));
+      } catch (e) {}
+    }
+    function loadPile() {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(PILE_KEY) || 'null');
+        if (!Array.isArray(saved) || !saved.length) return;
+        for (let i = 0; i < cols; i++) {
+          const j = Math.min(saved.length - 1, Math.floor((i / cols) * saved.length));
+          pile[i] = Math.min(maxPile * capNoise[i], (saved[j] || 0) * maxPile);
+        }
+      } catch (e) {}
+    }
+
+    window.addEventListener('pagehide', savePile);
+    window.addEventListener('resize', function () { resize(); if (enabled && reduced) start(); });
+    document.addEventListener('visibilitychange', function () {
+      if (!enabled || reduced) return;
+      if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+      else start();
+    });
+
+    // Header toggle(s)
+    function syncToggles() {
+      document.querySelectorAll('[data-snow-toggle]').forEach(function (b) {
+        b.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+        b.title = enabled ? 'Detener la nieve' : 'Hacer nevar';
+      });
+    }
+    document.querySelectorAll('[data-snow-toggle]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        enabled = !enabled;
+        localStorage.setItem(PREF_KEY, enabled ? 'on' : 'off');
+        if (enabled) start(); else { pile.fill(0); savePile(); stop(); }
+        syncToggles();
+      });
+    });
+
+    resize();
+    loadPile();
+    syncToggles();
+    if (enabled) start(); else stop();
+  })();
+</script>

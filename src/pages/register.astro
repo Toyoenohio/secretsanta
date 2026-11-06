@@ -1,0 +1,296 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { FESTIVE_AVATARS, getCurrentUser } from '../lib/auth';
+
+const user = await getCurrentUser(Astro.cookies);
+const joinCode = Astro.url.searchParams.get('join') || '';
+
+if (user) {
+  return Astro.redirect(joinCode ? `/?join=${encodeURIComponent(joinCode)}` : '/');
+}
+---
+
+<Layout title="Registro y datos personales">
+  <div class="page-frame pt-8 pb-16">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+      <div class="lg:col-span-4 space-y-5 lg:sticky lg:top-8">
+        <h1 class="type-display reveal-item">
+          Registra tus datos.
+        </h1>
+        <p class="type-body reveal-item reveal-delay-1">
+          Completa tu perfil con tus tallas, gustos y dirección de envío para que tu futuro amigo secreto acierte sin adivinar.
+        </p>
+
+        {joinCode && (
+          <div class="surface-panel space-y-1 reveal-item reveal-delay-2">
+            <div class="type-small" style="color: var(--muted);">Sala lista para unirte al terminar</div>
+            <div class="type-lead tabular">{joinCode}</div>
+          </div>
+        )}
+      </div>
+
+      <div class="lg:col-span-8">
+        <div class="surface-panel space-y-8 reveal-item reveal-delay-1">
+          <div
+            id="reg-error"
+            class="hidden p-3.5 rounded-[8px] type-small"
+            style="background-color: var(--danger-bg); color: var(--danger-ink);"
+          ></div>
+
+          <form id="register-form" class="space-y-8">
+            <input type="hidden" id="join-code" value={joinCode} />
+            <input type="hidden" name="avatar" id="avatar-input" value="SS" />
+
+            <!-- Monogram or custom avatar URL -->
+            <div class="surface-card space-y-3">
+              <div class="type-lead">Monograma o foto de perfil</div>
+              <p class="type-small" style="color: var(--muted);">
+                Elige un sello de dos letras o pega el enlace de tu fotografía.
+              </p>
+              <div class="flex flex-wrap gap-2 pt-1" id="avatar-grid">
+                {FESTIVE_AVATARS.map((code, idx) => (
+                  <button
+                    type="button"
+                    data-avatar={code}
+                    class="avatar-choice w-11 h-11 rounded-full type-small font-semibold flex items-center justify-center cursor-pointer border-0"
+                    style={
+                      idx === 0
+                        ? 'background-color: var(--accent); color: var(--accent-ink);'
+                        : 'background-color: var(--surface); color: var(--ink);'
+                    }
+                  >
+                    {code}
+                  </button>
+                ))}
+              </div>
+              <div class="pt-1">
+                <label for="custom-avatar-url" class="block type-small mb-1.5">
+                  URL de foto de perfil (opcional)
+                </label>
+                <input
+                  type="url"
+                  id="custom-avatar-url"
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+
+            <!-- Account credentials -->
+            <div class="space-y-4">
+              <h2 class="type-lead">Datos de tu cuenta</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="reg-name" class="block type-small mb-1.5">
+                    Nombre completo *
+                  </label>
+                  <input
+                    id="reg-name"
+                    type="text"
+                    name="name"
+                    required
+                    placeholder="Ej. María Fernanda López"
+                  />
+                </div>
+
+                <div>
+                  <label for="reg-nickname" class="block type-small mb-1.5">
+                    Apodo o cómo te conocen
+                  </label>
+                  <input
+                    id="reg-nickname"
+                    type="text"
+                    name="nickname"
+                    placeholder="Ej. Mafer"
+                  />
+                </div>
+
+                <div>
+                  <label for="reg-email" class="block type-small mb-1.5">
+                    Correo electrónico *
+                  </label>
+                  <input
+                    id="reg-email"
+                    type="email"
+                    name="email"
+                    required
+                    placeholder="tu@correo.com"
+                  />
+                </div>
+
+                <div>
+                  <label for="reg-password" class="block type-small mb-1.5">
+                    Contraseña * (mínimo 6 caracteres)
+                  </label>
+                  <input
+                    id="reg-password"
+                    type="password"
+                    name="password"
+                    required
+                    minlength="6"
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Sizes and preferences -->
+            <div class="space-y-4">
+              <h2 class="type-lead">Tallas y preferencias para tu amigo secreto</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label for="reg-shirt" class="block type-small mb-1.5">
+                    Talla camisa o blusa
+                  </label>
+                  <input id="reg-shirt" type="text" name="shirt_size" placeholder="Ej. M / L" />
+                </div>
+                <div>
+                  <label for="reg-pants" class="block type-small mb-1.5">
+                    Talla pantalón
+                  </label>
+                  <input id="reg-pants" type="text" name="pants_size" placeholder="Ej. 32 / M" />
+                </div>
+                <div>
+                  <label for="reg-shoes" class="block type-small mb-1.5">
+                    Talla calzado
+                  </label>
+                  <input id="reg-shoes" type="text" name="shoe_size" placeholder="Ej. 40 / 8.5 US" />
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="reg-likes" class="block type-small mb-1.5">
+                    Gustos generales, pasatiempos y colores
+                  </label>
+                  <textarea
+                    id="reg-likes"
+                    name="likes"
+                    rows="2"
+                    placeholder="Ej. Café en grano, libros de ciencia ficción, cerámica..."
+                  ></textarea>
+                </div>
+                <div>
+                  <label for="reg-dislikes" class="block type-small mb-1.5">
+                    Cosas que prefieres evitar o alergias
+                  </label>
+                  <textarea
+                    id="reg-dislikes"
+                    name="dislikes"
+                    rows="2"
+                    placeholder="Ej. Alergia al maní, no uso perfumes dulces..."
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contact and shipping -->
+            <div class="space-y-4">
+              <h2 class="type-lead">Contacto y dirección de entrega (opcional)</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label for="reg-phone" class="block type-small mb-1.5">
+                    Teléfono o WhatsApp
+                  </label>
+                  <input id="reg-phone" type="text" name="phone" placeholder="Ej. +58 412 1234567" />
+                </div>
+                <div>
+                  <label for="reg-address" class="block type-small mb-1.5">
+                    Dirección o agencia de envío preferida
+                  </label>
+                  <input
+                    id="reg-address"
+                    type="text"
+                    name="shipping_address"
+                    placeholder="Ciudad, dirección o sucursal"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" id="reg-btn" class="btn-primary w-full">
+              Completar registro y continuar
+            </button>
+          </form>
+
+          <p class="type-small" style="color: var(--muted);">
+            ¿Ya tienes una cuenta registrada?{' '}
+            <a
+              href={joinCode ? `/login?join=${encodeURIComponent(joinCode)}` : '/login'}
+              style="color: var(--ink); font-weight: 600; text-decoration: underline;"
+            >
+              Inicia sesión aquí
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    const avatarInput = document.getElementById('avatar-input');
+    const customUrlInput = document.getElementById('custom-avatar-url');
+    const avatarButtons = document.querySelectorAll('.avatar-choice');
+
+    avatarButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        avatarButtons.forEach((b) => {
+          b.style.backgroundColor = 'var(--surface)';
+          b.style.color = 'var(--ink)';
+        });
+        btn.style.backgroundColor = 'var(--accent)';
+        btn.style.color = 'var(--accent-ink)';
+        if (customUrlInput) customUrlInput.value = '';
+        if (avatarInput) avatarInput.value = btn.getAttribute('data-avatar') || 'SS';
+      });
+    });
+
+    customUrlInput?.addEventListener('input', () => {
+      if (customUrlInput.value.trim() && avatarInput) {
+        avatarInput.value = customUrlInput.value.trim();
+      }
+    });
+
+    const form = document.getElementById('register-form');
+    const errorBox = document.getElementById('reg-error');
+    const submitBtn = document.getElementById('reg-btn');
+    const joinCode = document.getElementById('join-code')?.value || '';
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!errorBox || !submitBtn) return;
+      errorBox.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creando tu cuenta...';
+
+      const formData = new FormData(form);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorBox.textContent = data.error || 'Error al registrar tu cuenta.';
+          errorBox.classList.remove('hidden');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Completar registro y continuar';
+          return;
+        }
+
+        if (joinCode) {
+          window.location.href = `/?join=${encodeURIComponent(joinCode)}`;
+        } else {
+          window.location.href = '/wishlist?welcome=1';
+        }
+      } catch {
+        errorBox.textContent = 'Error de conexión. Intenta nuevamente.';
+        errorBox.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Completar registro y continuar';
+      }
+    });
+  </script>
+</Layout>

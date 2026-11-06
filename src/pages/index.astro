@@ -1,0 +1,1265 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCurrentUser, formatAvatarLabel } from '../lib/auth';
+import { sql } from '../lib/db';
+
+const user = await getCurrentUser(Astro.cookies);
+const joinCodeParam = (Astro.url.searchParams.get('join') || '').trim().toUpperCase();
+
+let myRooms: any[] = [];
+let wishlistCount = 0;
+
+if (user) {
+  myRooms = await sql`
+    SELECT
+      r.id,
+      r.code,
+      r.name,
+      r.description,
+      r.exchange_date,
+      r.budget_min,
+      r.budget_max,
+      r.currency,
+      r.organizer_id,
+      r.status,
+      r.created_at,
+      rm.has_revealed,
+      rm.assigned_receiver_id,
+      rec.name AS receiver_name,
+      rec.nickname AS receiver_nickname,
+      rec.avatar AS receiver_avatar,
+      (SELECT COUNT(*)::int FROM room_members m WHERE m.room_id = r.id) AS member_count
+    FROM room_members rm
+    JOIN rooms r ON r.id = rm.room_id
+    LEFT JOIN users rec ON rec.id = rm.assigned_receiver_id
+    WHERE rm.user_id = ${user.id}
+    ORDER BY r.created_at DESC
+  `;
+
+  const wCount = await sql`
+    SELECT COUNT(*)::int AS total FROM wishlist_items WHERE user_id = ${user.id}
+  `;
+  wishlistCount = wCount[0]?.total || 0;
+}
+
+const openRoomsCount = myRooms.filter((r) => r.status === 'open').length;
+const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
+---
+
+<Layout title="Sorteo cerrado y wishlist" user={user} activeTab="rooms" isLanding={!user}>
+  {!user ? (
+    <div class="space-y-28 sm:space-y-36 pt-6 sm:pt-12">
+      <!-- HERO: Plain left-aligned statement + live working product fragment (data-ui) -->
+      <section class="page-frame">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+          <div class="lg:col-span-6 space-y-6">
+            <h1 class="type-display reveal-item max-w-[14ch]">
+              Sorteos cerrados sin nadie fuera.
+            </h1>
+
+            <p class="type-body reveal-item reveal-delay-1">
+              Organiza tu intercambio de amigo secreto con registro de tallas, wishlist con texto y enlaces URL, papelitos matemáticos de ciclo cerrado y chat anónimo en vivo.
+            </p>
+
+            <div class="flex flex-wrap items-center gap-4 pt-2 reveal-item reveal-delay-2">
+              <a
+                href={joinCodeParam ? `/register?join=${encodeURIComponent(joinCodeParam)}` : '/register'}
+                class="btn-primary"
+              >
+                Crear mi cuenta y sala
+              </a>
+              <a
+                href={joinCodeParam ? `/login?join=${encodeURIComponent(joinCodeParam)}` : '/login'}
+                class="btn-secondary"
+              >
+                Iniciar sesión
+              </a>
+            </div>
+
+            <div class="pt-4 grid grid-cols-3 gap-6 reveal-item reveal-delay-3 tabular">
+              <div>
+                <div class="type-lead">100%</div>
+                <div class="type-small" style="color: var(--muted);">Ciclo sin excluidos</div>
+              </div>
+              <div>
+                <div class="type-lead">URL + Texto</div>
+                <div class="type-small" style="color: var(--muted);">Wishlist con reserva</div>
+              </div>
+              <div>
+                <div class="type-lead">En vivo</div>
+                <div class="type-small" style="color: var(--muted);">Chat WebSocket</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Working HTML interface fragment (data-ui) -->
+          <div class="lg:col-span-6 reveal-item reveal-delay-2">
+            <div class="surface-panel !p-5 sm:!p-6 space-y-5">
+              <div data-ui class="p-5 sm:p-6 space-y-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div class="type-lead">Sala Familia & Amigos · #NAVIDAD-26</div>
+                    <div class="type-small" style="color: var(--muted);">
+                      Haz clic en un sobre para probar el sorteo de ciclo cerrado
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    id="demo-shuffle-btn"
+                    class="btn-secondary !min-h-[38px] !py-1.5 !px-3.5 type-small"
+                  >
+                    Mezclar ciclo
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3" id="demo-slips-grid">
+                  <button
+                    type="button"
+                    data-slip-index="0"
+                    class="demo-slip-btn p-3.5 rounded-[8px] text-left cursor-pointer"
+                    style="background-color: var(--accent); color: var(--accent-ink);"
+                  >
+                    <div class="type-small opacity-85 tabular">Sobre #1</div>
+                    <div class="type-body font-medium mt-2 demo-slip-status">Abierto</div>
+                  </button>
+                  <button
+                    type="button"
+                    data-slip-index="1"
+                    class="demo-slip-btn p-3.5 rounded-[8px] text-left cursor-pointer"
+                    style="background-color: var(--bg); color: var(--ink);"
+                  >
+                    <div class="type-small" style="color: var(--muted);">Sobre #2</div>
+                    <div class="type-body font-medium mt-2 demo-slip-status">Abrir sobre</div>
+                  </button>
+                  <button
+                    type="button"
+                    data-slip-index="2"
+                    class="demo-slip-btn p-3.5 rounded-[8px] text-left cursor-pointer"
+                    style="background-color: var(--bg); color: var(--ink);"
+                  >
+                    <div class="type-small" style="color: var(--muted);">Sobre #3</div>
+                    <div class="type-body font-medium mt-2 demo-slip-status">Abrir sobre</div>
+                  </button>
+                  <button
+                    type="button"
+                    data-slip-index="3"
+                    class="demo-slip-btn p-3.5 rounded-[8px] text-left cursor-pointer"
+                    style="background-color: var(--bg); color: var(--ink);"
+                  >
+                    <div class="type-small" style="color: var(--muted);">Sobre #4</div>
+                    <div class="type-body font-medium mt-2 demo-slip-status">Abrir sobre</div>
+                  </button>
+                </div>
+
+                <!-- Revealed Friend & Wishlist Fragment -->
+                <div class="p-4 rounded-[8px] space-y-3" style="background-color: var(--bg);">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                      <span class="monogram" id="demo-friend-monogram">ML</span>
+                      <div>
+                        <div class="type-body font-medium" id="demo-friend-name">
+                          María Fernanda López
+                        </div>
+                        <div class="type-small" style="color: var(--muted);" id="demo-friend-sizes">
+                          Camisa M · Calzado 38 · Prefiere café en grano y lectura
+                        </div>
+                      </div>
+                    </div>
+                    <span class="status-pill status-pill-success" id="demo-cycle-pill">
+                      Ciclo 4/4 verificado
+                    </span>
+                  </div>
+
+                  <div class="p-3.5 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-3" style="background-color: var(--ui-paper);">
+                    <div>
+                      <div class="type-body font-medium" id="demo-wish-title">
+                        Cafetera prensa francesa de acero 600ml
+                      </div>
+                      <div class="type-small" style="color: var(--muted);" id="demo-wish-url">
+                        Incluye enlace de tienda de referencia · Prioridad alta · 32 USD
+                      </div>
+                    </div>
+                    <span class="status-pill status-pill-accent shrink-0">
+                      Texto + URL
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 1: how-it-works — Drag through the stages -->
+      <section id="como-funciona" class="page-frame">
+        <div class="surface-panel space-y-8">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+            <div class="lg:col-span-5 space-y-5">
+              <h2 class="type-h2 reveal-item" id="stage-heading">
+                Cuatro pasos del sorteo
+              </h2>
+              <p class="type-lead reveal-item reveal-delay-1" id="stage-clause">
+                Primero, cada participante registra sus tallas, gustos y dirección de entrega.
+              </p>
+              <p class="type-body reveal-item reveal-delay-2" id="stage-desc">
+                Al entrar a la sala, completas tu talla de camisa, pantalón y calzado junto con tus preferencias o alergias para que nadie adivine a ciegas.
+              </p>
+            </div>
+
+            <div class="lg:col-span-7 reveal-item reveal-delay-2">
+              <div data-ui class="p-6 sm:p-7 space-y-4" id="stage-ui-box">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="type-lead" id="stage-ui-title">Ficha de participante · Datos y tallas</span>
+                  <span class="status-pill status-pill-accent tabular" id="stage-ui-badge">Etapa 1 de 4</span>
+                </div>
+                <div class="space-y-3" id="stage-ui-rows">
+                  <div class="ui-row">
+                    <span>Tallas registradas</span>
+                    <span class="font-medium tabular">Camisa M · Pantalón 32 · Calzado 41</span>
+                  </div>
+                  <div class="ui-row">
+                    <span>Gustos e intereses</span>
+                    <span class="font-medium">Libros de diseño, cerámica, chocolate 70%</span>
+                  </div>
+                  <div class="ui-row">
+                    <span>Restricciones o alergias</span>
+                    <span class="font-medium">Sin frutos secos ni fragancias fuertes</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Range slider + 4 stage stops -->
+          <div class="space-y-4 pt-2">
+            <label for="how-range" class="sr-only">Seleccionar etapa del funcionamiento</label>
+            <input
+              id="how-range"
+              type="range"
+              min="0"
+              max="3"
+              step="1"
+              value="0"
+              class="stage-slider"
+            />
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <button
+                type="button"
+                data-stage-btn="0"
+                class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
+                style="color: var(--ink); font-weight: 600;"
+              >
+                Registro y tallas
+              </button>
+              <button
+                type="button"
+                data-stage-btn="1"
+                class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
+                style="color: var(--muted);"
+              >
+                Wishlist con enlaces
+              </button>
+              <button
+                type="button"
+                data-stage-btn="2"
+                class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
+                style="color: var(--muted);"
+              >
+                Papelitos sin excluidos
+              </button>
+              <button
+                type="button"
+                data-stage-btn="3"
+                class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
+                style="color: var(--muted);"
+              >
+                Chat anónimo en vivo
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 2: Archival Imagery & Winter Footage Showcase -->
+      <section class="page-frame space-y-10">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
+          <div class="lg:col-span-6 space-y-4">
+            <h2 class="type-h2 reveal-item">
+              El oficio de regalar bien.
+            </h2>
+            <p class="type-body reveal-item reveal-delay-1">
+              Desde los grabados japoneses surimono del siglo XIX hasta las mesas familiares de diciembre, envolver un obsequio exige conocer a quien lo recibe.
+            </p>
+          </div>
+          <div class="lg:col-span-6">
+            <p class="type-body reveal-item reveal-delay-2">
+              Nuestro algoritmo arma un único ciclo hamiltoniano aleatorio donde cada integrante entrega y recibe exactamente un regalo, respetando exclusiones entre parejas o familiares.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
+          <figure class="md:col-span-7 m-0 flex flex-col justify-between gap-2.5 reveal-item">
+            <img
+              src="/assets/gift-wrapping-with-long-white-silk-ribbon.jpg"
+              width="1920"
+              height="1440"
+              alt="Caja de regalo envuelta en papel oscuro con cinta larga de seda blanca"
+              class="w-full h-72 sm:h-80 object-cover rounded-[10px]"
+            />
+            <figcaption class="type-small" style="color: var(--muted);">
+              Envoltura tradicional en papel texturizado y cinta de seda blanca · Fotografía de taller en Suecia.
+            </figcaption>
+          </figure>
+
+          <figure class="md:col-span-5 m-0 flex flex-col justify-between gap-2.5 reveal-item reveal-delay-1">
+            <video
+              autoplay
+              muted
+              loop
+              playsinline
+              preload="metadata"
+              poster="/assets/klo-creek-gurgles-during-an-early-winter-poster.jpg"
+              width="854"
+              height="480"
+              class="w-full h-72 sm:h-80 object-cover rounded-[10px]"
+            >
+              <source src="/assets/klo-creek-gurgles-during-an-early-winter.webm" type="video/webm" />
+            </video>
+            <figcaption class="type-small" style="color: var(--muted);">
+              Invierno en Columbia Británica · La temporada de reuniones y sorteos de fin de año.
+            </figcaption>
+          </figure>
+
+          <figure class="md:col-span-4 m-0 flex flex-col justify-between gap-2.5 reveal-item">
+            <img
+              src="/assets/incense-boxes-with-a-wrapping-cloth.jpg"
+              width="3845"
+              height="2788"
+              loading="lazy"
+              decoding="async"
+              alt="Grabado japonés de 1808 mostrando dos cajas de regalo sobre un paño fukusa"
+              class="w-full h-60 object-cover rounded-[10px]"
+            />
+            <figcaption class="type-small" style="color: var(--muted);">
+              Kubo Shunman, 1808 · Cajas de obsequio sobre paño de envolver.
+            </figcaption>
+          </figure>
+
+          <figure class="md:col-span-4 m-0 flex flex-col justify-between gap-2.5 reveal-item reveal-delay-1">
+            <img
+              src="/assets/souvenirs-covered-with-wrapping-cloth.jpg"
+              width="3835"
+              height="2853"
+              loading="lazy"
+              decoding="async"
+              alt="Grabado surimono de 1816 con obsequios cubiertos por tela decorada"
+              class="w-full h-60 object-cover rounded-[10px]"
+            />
+            <figcaption class="type-small" style="color: var(--muted);">
+              Colección Met Museum, 1816 · Obsequios cubiertos para intercambio.
+            </figcaption>
+          </figure>
+
+          <figure class="md:col-span-4 m-0 flex flex-col justify-between gap-2.5 reveal-item reveal-delay-2">
+            <img
+              src="/assets/gift-wrapping-in-a-jewellery-shop-2.jpg"
+              width="1920"
+              height="1442"
+              loading="lazy"
+              decoding="async"
+              alt="Paquete azul envuelto sobre papel de seda con tarjeta ilustrada"
+              class="w-full h-60 object-cover rounded-[10px]"
+            />
+            <figcaption class="type-small" style="color: var(--muted);">
+              Presentación con tarjeta dedicada lista para el día de entrega.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- SECTION 3: features — Fixed output on the left, live controls on the right -->
+      <section id="funciones" class="page-frame">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          <!-- Sticky live output card -->
+          <div class="lg:col-span-6 lg:sticky lg:top-8 field-band rounded-[14px] p-6 sm:p-8 space-y-5 reveal-item">
+            <div class="flex items-center justify-between gap-2">
+              <span class="type-lead">Vista en vivo de tu amigo asignado</span>
+              <span class="status-pill status-pill-success" id="live-output-mode-pill">
+                Texto + URL activo
+              </span>
+            </div>
+
+            <div data-ui class="p-5 sm:p-6 space-y-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="type-lead" id="live-wish-heading">
+                    Audífonos inalámbricos cancelación de ruido
+                  </div>
+                  <div class="type-small" style="color: var(--muted);" id="live-wish-sub">
+                    Color negro mate · Presupuesto sugerido 45 USD
+                  </div>
+                </div>
+                <span class="status-pill status-pill-accent" id="live-reserve-badge">
+                  Disponible
+                </span>
+              </div>
+
+              <div id="live-url-row" class="ui-row">
+                <span class="type-small truncate">https://tienda-ejemplo.com/audifonos-anc</span>
+                <span class="type-small font-semibold" style="color: var(--accent);">Referencia URL</span>
+              </div>
+
+              <div class="p-3.5 rounded-[6px] space-y-2" style="background-color: var(--bg);">
+                <div class="type-small font-semibold">
+                  Canal anónimo WebSocket · Identidad protegida
+                </div>
+                <div class="type-body" id="live-chat-preview">
+                  "Hola, ¿los prefieres en color negro mate o plata?"
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right column: interactive controls in text -->
+          <div class="lg:col-span-6 space-y-10">
+            <div class="space-y-3 reveal-item">
+              <h2 class="type-h2">
+                Todo resuelto antes de comprar.
+              </h2>
+              <p class="type-body">
+                Prueba los controles de abajo para ver cómo interactúan la wishlist, la reserva secreta entre salas y el chat en tiempo real.
+              </p>
+            </div>
+
+            <!-- Capability block 1 -->
+            <div class="space-y-3 reveal-item">
+              <h3 class="type-lead">
+                Entradas de solo texto o texto acompañado de URL
+              </h3>
+              <p class="type-body">
+                Puedes anotar una idea abierta o pegar el enlace exacto de la tienda para que tu amigo secreto no tenga dudas sobre el modelo.
+              </p>
+              <div class="flex flex-wrap gap-3 pt-1">
+                <button
+                  type="button"
+                  data-wish-mode="url"
+                  class="wish-mode-btn btn-primary !min-h-[42px] !py-2 !px-4 type-small"
+                >
+                  Mostrar deseo con URL
+                </button>
+                <button
+                  type="button"
+                  data-wish-mode="text"
+                  class="wish-mode-btn btn-secondary !min-h-[42px] !py-2 !px-4 type-small"
+                >
+                  Mostrar deseo de solo texto
+                </button>
+              </div>
+            </div>
+
+            <!-- Capability block 2 -->
+            <div class="space-y-3 reveal-item">
+              <h3 class="type-lead">
+                Reserva silenciosa entre múltiples salas
+              </h3>
+              <p class="type-body">
+                Si tu amigo participa en dos intercambios a la vez, puedes marcar un deseo como comprado. Él jamás lo sabrá, pero su otro amigo secreto verá que ya fue reservado.
+              </p>
+              <div class="pt-1">
+                <button
+                  type="button"
+                  id="toggle-reserve-demo"
+                  class="btn-secondary !min-h-[42px] !py-2 !px-4 type-small"
+                >
+                  Simular reserva secreta de regalo
+                </button>
+              </div>
+            </div>
+
+            <!-- Capability block 3 -->
+            <div class="space-y-3 reveal-item">
+              <h3 class="type-lead">
+                Chat anónimo bidireccional vía WebSocket
+              </h3>
+              <p class="type-body">
+                Pregunta por tallas o colores al instante. Puedes escribirle a tu asignado como su Amigo Secreto y también responderle a quien sacó tu nombre.
+              </p>
+              <div class="flex flex-col sm:flex-row gap-3 pt-1">
+                <label for="demo-chat-input" class="sr-only">Mensaje de prueba</label>
+                <input
+                  id="demo-chat-input"
+                  type="text"
+                  value="Hola, ¿prefieres edición física o digital?"
+                  placeholder="Escribe un mensaje anónimo de prueba..."
+                />
+                <button
+                  type="button"
+                  id="demo-chat-send"
+                  class="btn-primary shrink-0 !min-h-[46px]"
+                >
+                  Probar envío
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 4: faq — Question index on left, answer pane on right -->
+      <section id="preguntas" class="page-frame">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+          <div class="lg:col-span-5 space-y-5">
+            <h2 class="type-h2 reveal-item">
+              Preguntas frecuentes.
+            </h2>
+
+            <div class="space-y-3 pt-2" role="tablist" aria-label="Preguntas frecuentes">
+              <button
+                type="button"
+                data-faq-idx="0"
+                class="faq-q-btn w-full text-left p-3.5 rounded-[8px] flex items-center gap-3 cursor-pointer"
+                style="background-color: var(--surface); color: var(--ink); font-weight: 600;"
+              >
+                <span class="faq-dot w-2.5 h-2.5 rounded-full shrink-0" style="background-color: var(--accent);"></span>
+                <span class="type-body">¿Cómo garantizan que nadie quede sin elegir o sin ser elegido?</span>
+              </button>
+
+              <button
+                type="button"
+                data-faq-idx="1"
+                class="faq-q-btn w-full text-left p-3.5 rounded-[8px] flex items-center gap-3 cursor-pointer"
+                style="background-color: transparent; color: var(--muted);"
+              >
+                <span class="faq-dot w-2.5 h-2.5 rounded-full shrink-0" style="background-color: var(--muted);"></span>
+                <span class="type-body">¿Puedo evitar que parejas o hermanos se toquen entre sí?</span>
+              </button>
+
+              <button
+                type="button"
+                data-faq-idx="2"
+                class="faq-q-btn w-full text-left p-3.5 rounded-[8px] flex items-center gap-3 cursor-pointer"
+                style="background-color: transparent; color: var(--muted);"
+              >
+                <span class="faq-dot w-2.5 h-2.5 rounded-full shrink-0" style="background-color: var(--muted);"></span>
+                <span class="type-body">¿Quién puede ver los deseos y enlaces de mi wishlist?</span>
+              </button>
+
+              <button
+                type="button"
+                data-faq-idx="3"
+                class="faq-q-btn w-full text-left p-3.5 rounded-[8px] flex items-center gap-3 cursor-pointer"
+                style="background-color: transparent; color: var(--muted);"
+              >
+                <span class="faq-dot w-2.5 h-2.5 rounded-full shrink-0" style="background-color: var(--muted);"></span>
+                <span class="type-body">¿El chat en tiempo real revela mi nombre en algún momento?</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="lg:col-span-7 lg:sticky lg:top-24 surface-panel !p-7 sm:!p-10 space-y-4 reveal-item reveal-delay-1">
+            <div class="type-small" style="color: var(--muted);" id="faq-answer-kicker">
+              Garantía matemática del sorteo
+            </div>
+            <p class="type-lead max-w-[46ch]" id="faq-answer-body" style="color: var(--ink);">
+              El sorteo no se improvisa uno por uno al azar: calcula primero un ciclo cerrado completo (permutación sin puntos fijos) con todos los miembros inscritos en la sala. Así es imposible que la última persona se saque a sí misma o que alguien quede fuera.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SECTION 5: cta — First step, already open -->
+      <section class="page-frame">
+        <div class="field-band rounded-[14px] p-7 sm:p-12 lg:p-16 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+          <div class="lg:col-span-6 space-y-4">
+            <h2 class="type-display reveal-item" style="color: var(--field-ink);">
+              Abre tu sala hoy mismo.
+            </h2>
+            <p class="type-body reveal-item reveal-delay-1" style="color: var(--field-muted);">
+              Escribe el código de invitación que te compartieron o crea una cuenta gratuita para organizar tu propio grupo en menos de un minuto.
+            </p>
+          </div>
+
+          <div class="lg:col-span-6 reveal-item reveal-delay-2">
+            <div data-ui class="p-6 sm:p-8 max-w-[460px] mx-auto space-y-5">
+              <div class="type-lead">Comenzar en Secret Santa</div>
+
+              <div class="grid grid-cols-2 gap-2 p-1 rounded-[6px]" style="background-color: var(--bg);">
+                <button
+                  type="button"
+                  data-cta-mode="register"
+                  class="cta-mode-btn py-2 px-3 rounded-[4px] type-small font-medium cursor-pointer"
+                  style="background-color: var(--accent); color: var(--accent-ink);"
+                >
+                  Crear cuenta nueva
+                </button>
+                <button
+                  type="button"
+                  data-cta-mode="join"
+                  class="cta-mode-btn py-2 px-3 rounded-[4px] type-small font-medium cursor-pointer"
+                  style="background-color: transparent; color: var(--ink);"
+                >
+                  Tengo un código
+                </button>
+              </div>
+
+              <form id="landing-cta-form" class="space-y-4" action="/register" method="GET">
+                <div>
+                  <label for="landing-cta-input" class="block type-small mb-1.5" id="landing-cta-label">
+                    Código de sala (opcional si te invitaron)
+                  </label>
+                  <input
+                    id="landing-cta-input"
+                    type="text"
+                    name="join"
+                    value={joinCodeParam}
+                    placeholder="Ej. NAVIDAD-4829"
+                  />
+                </div>
+                <button type="submit" class="btn-primary w-full" id="landing-cta-submit">
+                  Continuar al registro y perfil
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  ) : (
+    <!-- AUTHENTICATED PARTICIPANT DASHBOARD -->
+    <div class="page-frame pt-6 space-y-10">
+      <section class="surface-panel flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div class="flex items-center gap-4">
+          <div class="monogram monogram-lg">
+            {user.avatar.startsWith('http') ? (
+              <img src={user.avatar} alt={user.name} width="56" height="56" />
+            ) : (
+              <span>{formatAvatarLabel(user.avatar, user.name)}</span>
+            )}
+          </div>
+          <div class="space-y-1">
+            <h1 class="type-h2">
+              Hola, {user.nickname || user.name}
+            </h1>
+            <p class="type-body" style="color: var(--muted);">
+              Administra tus salas de intercambio, únete con código o actualiza tu wishlist global.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <a href="/wishlist" class="btn-secondary">
+            Mi wishlist ({wishlistCount})
+          </a>
+          <a href="/profile" class="btn-primary">
+            Mis datos y tallas
+          </a>
+        </div>
+      </section>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <!-- Left column: Join by code + Create room -->
+        <div class="lg:col-span-5 space-y-6">
+          <section class="surface-panel space-y-4">
+            <div class="space-y-1">
+              <h2 class="type-lead">Unirse con código</h2>
+              <p class="type-small" style="color: var(--muted);">
+                Ingresa el código de invitación que te compartieron en tu grupo.
+              </p>
+            </div>
+
+            <div
+              id="join-error"
+              class="hidden p-3.5 rounded-[8px] type-small"
+              style="background-color: var(--danger-bg); color: var(--danger-ink);"
+            ></div>
+
+            <form id="join-room-form" class="space-y-3">
+              <div>
+                <label for="join-code-input" class="block type-small mb-1.5">
+                  Código de la sala
+                </label>
+                <input
+                  type="text"
+                  name="code"
+                  id="join-code-input"
+                  required
+                  value={joinCodeParam}
+                  placeholder="Ej. NAVIDAD-4829"
+                  class="uppercase tabular font-medium"
+                />
+              </div>
+              <button type="submit" id="join-room-btn" class="btn-primary w-full">
+                Entrar a la sala
+              </button>
+            </form>
+          </section>
+
+          <section class="surface-panel space-y-4">
+            <div class="space-y-1">
+              <h2 class="type-lead">Crear nueva sala</h2>
+              <p class="type-small" style="color: var(--muted);">
+                Organiza un nuevo sorteo cerrado de amigo secreto y genera su código.
+              </p>
+            </div>
+
+            <div
+              id="create-error"
+              class="hidden p-3.5 rounded-[8px] type-small"
+              style="background-color: var(--danger-bg); color: var(--danger-ink);"
+            ></div>
+
+            <form id="create-room-form" class="space-y-4">
+              <div>
+                <label for="room-name-input" class="block type-small mb-1.5">
+                  Nombre de la sala o evento *
+                </label>
+                <input
+                  id="room-name-input"
+                  type="text"
+                  name="name"
+                  required
+                  placeholder="Ej. Intercambio Familia 2026"
+                />
+              </div>
+
+              <div>
+                <label for="room-date-input" class="block type-small mb-1.5">
+                  Fecha de entrega (opcional)
+                </label>
+                <input id="room-date-input" type="date" name="exchange_date" />
+              </div>
+
+              <div class="grid grid-cols-3 gap-3">
+                <div>
+                  <label for="budget-min-input" class="block type-small mb-1.5">
+                    Mínimo
+                  </label>
+                  <input id="budget-min-input" type="number" step="0.01" name="budget_min" placeholder="15" />
+                </div>
+                <div>
+                  <label for="budget-max-input" class="block type-small mb-1.5">
+                    Máximo
+                  </label>
+                  <input id="budget-max-input" type="number" step="0.01" name="budget_max" placeholder="50" />
+                </div>
+                <div>
+                  <label for="currency-select" class="block type-small mb-1.5">
+                    Moneda
+                  </label>
+                  <select id="currency-select" name="currency">
+                    <option value="USD">USD ($)</option>
+                    <option value="EUR">EUR (€)</option>
+                    <option value="COP">COP ($)</option>
+                    <option value="MXN">MXN ($)</option>
+                    <option value="CLP">CLP ($)</option>
+                    <option value="ARS">ARS ($)</option>
+                    <option value="PEN">PEN (S/)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label for="room-desc-input" class="block type-small mb-1.5">
+                  Reglas o notas para el grupo
+                </label>
+                <textarea
+                  id="room-desc-input"
+                  name="description"
+                  rows="2"
+                  placeholder="Ej. Entrega en la cena del 24 de diciembre. Completen su wishlist."
+                ></textarea>
+              </div>
+
+              <button type="submit" id="create-room-btn" class="btn-primary w-full">
+                Crear sala y generar código
+              </button>
+            </form>
+          </section>
+        </div>
+
+        <!-- Right column: My rooms list -->
+        <div class="lg:col-span-7 space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="type-lead">Mis salas registradas ({myRooms.length})</h2>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="room-filter-tab status-pill status-pill-accent cursor-pointer border-0"
+                data-filter="all"
+              >
+                Todas ({myRooms.length})
+              </button>
+              <button
+                type="button"
+                class="room-filter-tab status-pill cursor-pointer border-0"
+                data-filter="open"
+              >
+                En registro ({openRoomsCount})
+              </button>
+              <button
+                type="button"
+                class="room-filter-tab status-pill cursor-pointer border-0"
+                data-filter="drawn"
+              >
+                Sorteo activo ({drawnRoomsCount})
+              </button>
+            </div>
+          </div>
+
+          {myRooms.length === 0 ? (
+            <div class="surface-panel py-12 text-center space-y-3">
+              <h3 class="type-lead">Aún no participas en ninguna sala</h3>
+              <p class="type-body mx-auto" style="color: var(--muted);">
+                Crea una sala nueva en el panel izquierdo o únete con el código de invitación de tu grupo.
+              </p>
+            </div>
+          ) : (
+            <div class="space-y-4" id="rooms-list">
+              {myRooms.map((room) => {
+                const isOrganizer = room.organizer_id === user.id;
+                const isDrawn = room.status === 'drawn';
+                const hasRevealed = Boolean(room.has_revealed);
+
+                return (
+                  <a
+                    href={`/rooms/${room.code}`}
+                    data-room-status={room.status}
+                    class="room-card-item block surface-card space-y-4"
+                  >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div class="space-y-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                          <span class="type-lead">{room.name}</span>
+                          {isOrganizer && (
+                            <span class="status-pill status-pill-warning">Organizador</span>
+                          )}
+                        </div>
+                        <div class="type-small tabular" style="color: var(--muted);">
+                          Código #{room.code} · {room.member_count} participantes
+                        </div>
+                      </div>
+
+                      <span class={`status-pill ${isDrawn ? 'status-pill-success' : 'status-pill-accent'}`}>
+                        {isDrawn ? (hasRevealed ? 'Papelito abierto' : 'Elegir papelito') : 'Fase de registro'}
+                      </span>
+                    </div>
+
+                    {room.description && (
+                      <p class="type-small" style="color: var(--muted);">
+                        {room.description}
+                      </p>
+                    )}
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 type-small tabular pt-1">
+                      <span style="color: var(--muted);">
+                        {(room.budget_min != null || room.budget_max != null)
+                          ? `Presupuesto: ${room.budget_min ?? 0} a ${room.budget_max ?? 'libre'} ${room.currency}`
+                          : 'Presupuesto libre'}
+                      </span>
+                      <span class="font-medium">
+                        {isDrawn && hasRevealed && room.receiver_name
+                          ? `Asignado: ${room.receiver_nickname || room.receiver_name}`
+                          : 'Abrir sala'}
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )}
+
+  <script is:inline>
+    // Landing interactive demo 1: Closed-cycle paper slips
+    const demoParticipants = [
+      {
+        monogram: 'ML',
+        name: 'María Fernanda López',
+        sizes: 'Camisa M · Calzado 38 · Prefiere café en grano y lectura',
+        wish: 'Cafetera prensa francesa de acero 600ml',
+        urlNote: 'Incluye enlace de tienda de referencia · Prioridad alta · 32 USD',
+      },
+      {
+        monogram: 'CR',
+        name: 'Carlos Andrés Rivas',
+        sizes: 'Camisa L · Calzado 42 · Aficionado a la fotografía y senderismo',
+        wish: 'Correa tejida para cámara mirrorless',
+        urlNote: 'Incluye enlace de tienda de referencia · Prioridad media · 28 USD',
+      },
+      {
+        monogram: 'VP',
+        name: 'Valentina Pérez',
+        sizes: 'Camisa S · Calzado 37 · Le encantan las acuarelas y plantas',
+        wish: 'Bitácora de papel algodón 300g prensado en frío',
+        urlNote: 'Entrada de solo texto · Prioridad alta · 24 USD',
+      },
+      {
+        monogram: 'DM',
+        name: 'Diego Mendoza',
+        sizes: 'Camisa M · Calzado 41 · Cocina italiana y juegos de mesa',
+        wish: 'Piedra refractaria para hornear pizza en casa',
+        urlNote: 'Incluye enlace de tienda de referencia · Prioridad media · 35 USD',
+      },
+    ];
+
+    const slipBtns = document.querySelectorAll('.demo-slip-btn');
+    const shuffleBtn = document.getElementById('demo-shuffle-btn');
+    const friendMonogram = document.getElementById('demo-friend-monogram');
+    const friendName = document.getElementById('demo-friend-name');
+    const friendSizes = document.getElementById('demo-friend-sizes');
+    const wishTitle = document.getElementById('demo-wish-title');
+    const wishUrl = document.getElementById('demo-wish-url');
+    const cyclePill = document.getElementById('demo-cycle-pill');
+    let slipOffset = 0;
+
+    function selectDemoSlip(idx) {
+      const p = demoParticipants[(idx + slipOffset) % demoParticipants.length];
+      if (!p || !friendName) return;
+      friendMonogram.textContent = p.monogram;
+      friendName.textContent = p.name;
+      friendSizes.textContent = p.sizes;
+      wishTitle.textContent = p.wish;
+      wishUrl.textContent = p.urlNote;
+
+      slipBtns.forEach((b, i) => {
+        const statusEl = b.querySelector('.demo-slip-status');
+        if (i === idx) {
+          b.style.backgroundColor = 'var(--accent)';
+          b.style.color = 'var(--accent-ink)';
+          if (statusEl) statusEl.textContent = 'Abierto';
+        } else {
+          b.style.backgroundColor = 'var(--bg)';
+          b.style.color = 'var(--ink)';
+          if (statusEl) statusEl.textContent = 'Abrir sobre';
+        }
+      });
+    }
+
+    slipBtns.forEach((btn, idx) => {
+      btn.addEventListener('click', () => selectDemoSlip(idx));
+    });
+
+    shuffleBtn?.addEventListener('click', () => {
+      slipOffset = (slipOffset + 1) % demoParticipants.length;
+      selectDemoSlip(0);
+      if (cyclePill) {
+        cyclePill.textContent = 'Nuevo ciclo 4/4 generado';
+      }
+    });
+
+    // Landing interactive demo 2: How-it-works range slider
+    const stagesData = [
+      {
+        clause: 'Primero, cada participante registra sus tallas, gustos y dirección de entrega.',
+        desc: 'Al entrar a la sala, completas tu talla de camisa, pantalón y calzado junto con tus preferencias o alergias para que nadie adivine a ciegas.',
+        uiTitle: 'Ficha de participante · Datos y tallas',
+        badge: 'Etapa 1 de 4',
+        rows: [
+          ['Tallas registradas', 'Camisa M · Pantalón 32 · Calzado 41'],
+          ['Gustos e intereses', 'Libros de diseño, cerámica, chocolate 70%'],
+          ['Restricciones o alergias', 'Sin frutos secos ni fragancias fuertes'],
+        ],
+      },
+      {
+        clause: 'Segundo, armas tu wishlist personal con entradas de texto o enlaces URL.',
+        desc: 'Puedes añadir ideas abiertas en texto o acompañarlas del link directo de la tienda, indicando nivel de prioridad y precio aproximado.',
+        uiTitle: 'Mi wishlist global · 3 deseos activos',
+        badge: 'Etapa 2 de 4',
+        rows: [
+          ['Prensa francesa acero inoxidable', 'Texto + Enlace URL · 32 USD'],
+          ['Libro de arquitectura nórdica', 'Solo texto · 25 USD'],
+          ['Lámpara de lectura cálida recargable', 'Texto + Enlace URL · 28 USD'],
+        ],
+      },
+      {
+        clause: 'Tercero, el organizador activa los papelitos con ciclo cerrado garantizado.',
+        desc: 'El algoritmo calcula un ciclo completo respetando las exclusiones configuradas. Nadie se saca a sí mismo y nadie queda jamás sin regalo.',
+        uiTitle: 'Mesa de sorteo · Ciclo cerrado verificado',
+        badge: 'Etapa 3 de 4',
+        rows: [
+          ['Participantes en el ciclo', '8 de 8 emparejados sin repeticiones'],
+          ['Exclusiones aplicadas', '2 reglas de pareja respetadas'],
+          ['Estado de tu sobre', 'Sobre #3 abierto · Asignado desbloqueado'],
+        ],
+      },
+      {
+        clause: 'Cuarto, consultas la wishlist de tu amigo y chateas en vivo sin revelar quién eres.',
+        desc: 'Marca qué regalo compraste para que no se repita en otras salas y escríbele por WebSocket en tiempo real bajo seudónimo.',
+        uiTitle: 'Canal anónimo WebSocket · Sala activa',
+        badge: 'Etapa 4 de 4',
+        rows: [
+          ['Tu identidad frente a tu asignado', 'Oculta bajo seudónimo Amigo Secreto'],
+          ['Estado del regalo elegido', 'Reservado en secreto para esta sala'],
+          ['Último mensaje en vivo', 'Recibido hace instantes sin recargar'],
+        ],
+      },
+    ];
+
+    const howRange = document.getElementById('how-range');
+    const stageBtns = document.querySelectorAll('.stage-label-btn');
+    const stageClause = document.getElementById('stage-clause');
+    const stageDesc = document.getElementById('stage-desc');
+    const stageUiTitle = document.getElementById('stage-ui-title');
+    const stageUiBadge = document.getElementById('stage-ui-badge');
+    const stageUiRows = document.getElementById('stage-ui-rows');
+
+    function setStage(idx) {
+      const s = stagesData[idx];
+      if (!s || !stageClause) return;
+      if (howRange) howRange.value = String(idx);
+      stageClause.textContent = s.clause;
+      stageDesc.textContent = s.desc;
+      stageUiTitle.textContent = s.uiTitle;
+      stageUiBadge.textContent = s.badge;
+      if (stageUiRows) {
+        stageUiRows.innerHTML = s.rows
+          .map(
+            (r) =>
+              `<div class="ui-row"><span>${r[0]}</span><span class="font-medium">${r[1]}</span></div>`
+          )
+          .join('');
+      }
+      stageBtns.forEach((b, i) => {
+        b.style.color = i === idx ? 'var(--ink)' : 'var(--muted)';
+        b.style.fontWeight = i === idx ? '600' : '500';
+      });
+    }
+
+    howRange?.addEventListener('input', (e) => {
+      setStage(Number(e.target.value) || 0);
+    });
+    stageBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        setStage(Number(btn.getAttribute('data-stage-btn')) || 0);
+      });
+    });
+
+    // Landing interactive demo 3: Fixed output controls
+    const wishModeBtns = document.querySelectorAll('.wish-mode-btn');
+    const liveUrlRow = document.getElementById('live-url-row');
+    const liveModePill = document.getElementById('live-output-mode-pill');
+    const liveWishHeading = document.getElementById('live-wish-heading');
+    const liveWishSub = document.getElementById('live-wish-sub');
+
+    wishModeBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-wish-mode');
+        if (mode === 'text') {
+          if (liveUrlRow) liveUrlRow.style.display = 'none';
+          if (liveModePill) liveModePill.textContent = 'Solo texto activo';
+          if (liveWishHeading) liveWishHeading.textContent = ' Caja de café de especialidad en grano (tueste medio)';
+          if (liveWishSub) liveWishSub.textContent = 'Cualquier origen colombiano o etíope · 20 a 30 USD';
+        } else {
+          if (liveUrlRow) liveUrlRow.style.display = 'flex';
+          if (liveModePill) liveModePill.textContent = 'Texto + URL activo';
+          if (liveWishHeading) liveWishHeading.textContent = 'Audífonos inalámbricos cancelación de ruido';
+          if (liveWishSub) liveWishSub.textContent = 'Color negro mate · Presupuesto sugerido 45 USD';
+        }
+      });
+    });
+
+    const toggleReserveBtn = document.getElementById('toggle-reserve-demo');
+    const liveReserveBadge = document.getElementById('live-reserve-badge');
+    let demoReserved = false;
+    toggleReserveBtn?.addEventListener('click', () => {
+      demoReserved = !demoReserved;
+      if (liveReserveBadge) {
+        liveReserveBadge.textContent = demoReserved
+          ? 'Reservado por ti (oculto al dueño)'
+          : 'Disponible';
+      }
+    });
+
+    const demoChatInput = document.getElementById('demo-chat-input');
+    const demoChatSend = document.getElementById('demo-chat-send');
+    const liveChatPreview = document.getElementById('live-chat-preview');
+    demoChatSend?.addEventListener('click', () => {
+      if (demoChatInput && demoChatInput.value.trim() && liveChatPreview) {
+        liveChatPreview.textContent = `"${demoChatInput.value.trim()}"`;
+      }
+    });
+
+    // Landing interactive demo 4: FAQ index
+    const faqData = [
+      {
+        kicker: 'Garantía matemática del sorteo',
+        body: 'El sorteo no se improvisa uno por uno al azar: calcula primero un ciclo cerrado completo (permutación sin puntos fijos) con todos los miembros inscritos en la sala. Así es imposible que la última persona se saque a sí misma o que alguien quede fuera.',
+      },
+      {
+        kicker: 'Reglas de exclusión entre participantes',
+        body: 'Antes de habilitar los sobres, el organizador puede indicar qué parejas o familiares no deben tocarse entre sí. Nuestro buscador de ciclos verifica al instante que siga existiendo un sorteo válido para todos.',
+      },
+      {
+        kicker: 'Privacidad y reserva entre salas',
+        body: 'Tu wishlist es global para tu cuenta, pero dentro de cada sala solo la persona que sacó tu papelito puede abrirla. Cuando tu amigo secreto marca un deseo como comprado, tú sigues viéndolo normal para no arruinar la sorpresa.',
+      },
+      {
+        kicker: 'Mensajería anónima por WebSocket',
+        body: 'Cada sala cuenta con dos canales separados: uno donde escribes bajo el seudónimo de Amigo Secreto a la persona que te tocó, y otro donde recibes mensajes de quien te regala a ti sin exponer su nombre ni su correo.',
+      },
+    ];
+
+    const faqBtns = document.querySelectorAll('.faq-q-btn');
+    const faqKicker = document.getElementById('faq-answer-kicker');
+    const faqBody = document.getElementById('faq-answer-body');
+
+    faqBtns.forEach((btn) => {
+      const activate = () => {
+        const idx = Number(btn.getAttribute('data-faq-idx')) || 0;
+        const item = faqData[idx];
+        if (!item || !faqBody) return;
+        faqKicker.textContent = item.kicker;
+        faqBody.textContent = item.body;
+        faqBtns.forEach((b, i) => {
+          const dot = b.querySelector('.faq-dot');
+          if (i === idx) {
+            b.style.backgroundColor = 'var(--surface)';
+            b.style.color = 'var(--ink)';
+            b.style.fontWeight = '600';
+            if (dot) dot.style.backgroundColor = 'var(--accent)';
+          } else {
+            b.style.backgroundColor = 'transparent';
+            b.style.color = 'var(--muted)';
+            b.style.fontWeight = '400';
+            if (dot) dot.style.backgroundColor = 'var(--muted)';
+          }
+        });
+      };
+      btn.addEventListener('click', activate);
+      btn.addEventListener('mouseenter', activate);
+    });
+
+    // Landing CTA mode switcher
+    const ctaModeBtns = document.querySelectorAll('.cta-mode-btn');
+    const ctaForm = document.getElementById('landing-cta-form');
+    const ctaLabel = document.getElementById('landing-cta-label');
+    const ctaSubmit = document.getElementById('landing-cta-submit');
+
+    ctaModeBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-cta-mode');
+        ctaModeBtns.forEach((b) => {
+          const active = b === btn;
+          b.style.backgroundColor = active ? 'var(--accent)' : 'transparent';
+          b.style.color = active ? 'var(--accent-ink)' : 'var(--ink)';
+        });
+        if (mode === 'join') {
+          if (ctaForm) ctaForm.setAttribute('action', '/login');
+          if (ctaLabel) ctaLabel.textContent = 'Ingresa el código de invitación de tu sala';
+          if (ctaSubmit) ctaSubmit.textContent = 'Entrar y unirme a la sala';
+        } else {
+          if (ctaForm) ctaForm.setAttribute('action', '/register');
+          if (ctaLabel) ctaLabel.textContent = 'Código de sala (opcional si te invitaron)';
+          if (ctaSubmit) ctaSubmit.textContent = 'Continuar al registro y perfil';
+        }
+      });
+    });
+
+    // Authenticated dashboard logic: filter tabs, join room, create room
+    const filterTabs = document.querySelectorAll('.room-filter-tab');
+    const roomCards = document.querySelectorAll('.room-card-item');
+    filterTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        filterTabs.forEach((t) => t.classList.remove('status-pill-accent'));
+        tab.classList.add('status-pill-accent');
+        const filter = tab.getAttribute('data-filter') || 'all';
+        roomCards.forEach((card) => {
+          const status = card.getAttribute('data-room-status');
+          if (filter === 'all' || status === filter) {
+            card.classList.remove('hidden');
+          } else {
+            card.classList.add('hidden');
+          }
+        });
+      });
+    });
+
+    const joinForm = document.getElementById('join-room-form');
+    const joinError = document.getElementById('join-error');
+    const joinBtn = document.getElementById('join-room-btn');
+    const joinInput = document.getElementById('join-code-input');
+
+    async function submitJoin(codeValue) {
+      if (!joinError || !joinBtn) return;
+      joinError.classList.add('hidden');
+      joinBtn.disabled = true;
+      joinBtn.textContent = 'Uniendo a la sala...';
+
+      try {
+        const res = await fetch('/api/rooms/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: codeValue }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          joinError.textContent = data.error || 'No se pudo unir a la sala.';
+          joinError.classList.remove('hidden');
+          joinBtn.disabled = false;
+          joinBtn.textContent = 'Entrar a la sala';
+          return;
+        }
+        window.location.href = `/rooms/${data.room.code}`;
+      } catch {
+        joinError.textContent = 'Error de conexión.';
+        joinError.classList.remove('hidden');
+        joinBtn.disabled = false;
+        joinBtn.textContent = 'Entrar a la sala';
+      }
+    }
+
+    joinForm?.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (joinInput?.value.trim()) {
+        submitJoin(joinInput.value.trim());
+      }
+    });
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const autoJoinCode = urlParams.get('join');
+    if (autoJoinCode && joinForm) {
+      submitJoin(autoJoinCode);
+    }
+
+    const createForm = document.getElementById('create-room-form');
+    const createError = document.getElementById('create-error');
+    const createBtn = document.getElementById('create-room-btn');
+
+    createForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!createError || !createBtn) return;
+      createError.classList.add('hidden');
+      createBtn.disabled = true;
+      createBtn.textContent = 'Creando sala...';
+
+      const formData = new FormData(createForm);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const res = await fetch('/api/rooms/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          createError.textContent = data.error || 'Error al crear la sala.';
+          createError.classList.remove('hidden');
+          createBtn.disabled = false;
+          createBtn.textContent = 'Crear sala y generar código';
+          return;
+        }
+        window.location.href = `/rooms/${data.room.code}`;
+      } catch {
+        createError.textContent = 'Error de conexión.';
+        createError.classList.remove('hidden');
+        createBtn.disabled = false;
+        createBtn.textContent = 'Crear sala y generar código';
+      }
+    });
+  </script>
+</Layout>

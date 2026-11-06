@@ -1,0 +1,271 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { FESTIVE_AVATARS, getCurrentUser, formatAvatarLabel } from '../lib/auth';
+
+const user = await getCurrentUser(Astro.cookies);
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+const isCustomUrl =
+  user.avatar.startsWith('http://') || user.avatar.startsWith('https://');
+const currentAvatarCode = formatAvatarLabel(user.avatar, user.name);
+---
+
+<Layout title="Mis datos personales" user={user} activeTab="profile">
+  <div class="page-frame pt-8 pb-16 space-y-8">
+    <section class="surface-panel flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="space-y-1">
+        <h1 class="type-h2">Mis datos personales</h1>
+        <p class="type-body" style="color: var(--muted);">
+          Mantén actualizados tus gustos, tallas y dirección para que tu amigo secreto acierte con tu regalo.
+        </p>
+      </div>
+      <a href="/wishlist" class="btn-secondary shrink-0 self-start sm:self-center">
+        Ir a mi wishlist
+      </a>
+    </section>
+
+    <section class="surface-panel space-y-6">
+      <div
+        id="profile-toast"
+        class="hidden p-3.5 rounded-[8px] type-small"
+      ></div>
+
+      <form id="profile-form" class="space-y-8">
+        <input type="hidden" name="avatar" id="avatar-input" value={isCustomUrl ? user.avatar : currentAvatarCode} />
+
+        <!-- Monogram selector -->
+        <div class="surface-card space-y-3">
+          <div class="type-lead">Monograma o enlace de foto</div>
+          <div class="flex flex-wrap gap-2">
+            {FESTIVE_AVATARS.map((code) => (
+              <button
+                type="button"
+                data-avatar={code}
+                class="avatar-choice w-11 h-11 rounded-full type-small font-semibold flex items-center justify-center cursor-pointer border-0"
+                style={
+                  currentAvatarCode === code && !isCustomUrl
+                    ? 'background-color: var(--accent); color: var(--accent-ink);'
+                    : 'background-color: var(--surface); color: var(--ink);'
+                }
+              >
+                {code}
+              </button>
+            ))}
+          </div>
+          <div class="pt-1">
+            <label for="custom-avatar-url" class="block type-small mb-1.5">
+              O pega una URL de foto de perfil
+            </label>
+            <input
+              type="url"
+              id="custom-avatar-url"
+              value={isCustomUrl ? user.avatar : ''}
+              placeholder="https://..."
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="prof-name" class="block type-small mb-1.5">
+              Nombre completo *
+            </label>
+            <input id="prof-name" type="text" name="name" required value={user.name} />
+          </div>
+
+          <div>
+            <label for="prof-nickname" class="block type-small mb-1.5">
+              Apodo o cómo te conocen
+            </label>
+            <input
+              id="prof-nickname"
+              type="text"
+              name="nickname"
+              value={user.nickname || ''}
+              placeholder="Ej. Wil"
+            />
+          </div>
+
+          <div>
+            <label for="prof-email" class="block type-small mb-1.5">
+              Correo electrónico (cuenta)
+            </label>
+            <input
+              id="prof-email"
+              type="email"
+              disabled
+              value={user.email}
+              class="opacity-65 cursor-not-allowed"
+            />
+          </div>
+
+          <div>
+            <label for="prof-phone" class="block type-small mb-1.5">
+              Teléfono o WhatsApp
+            </label>
+            <input
+              id="prof-phone"
+              type="text"
+              name="phone"
+              value={user.phone || ''}
+              placeholder="Ej. +58 412 1234567"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div>
+            <label for="prof-shirt" class="block type-small mb-1.5">
+              Talla camisa o blusa
+            </label>
+            <input
+              id="prof-shirt"
+              type="text"
+              name="shirt_size"
+              value={user.shirt_size || ''}
+              placeholder="Ej. M / L"
+            />
+          </div>
+          <div>
+            <label for="prof-pants" class="block type-small mb-1.5">
+              Talla pantalón
+            </label>
+            <input
+              id="prof-pants"
+              type="text"
+              name="pants_size"
+              value={user.pants_size || ''}
+              placeholder="Ej. 32 / M"
+            />
+          </div>
+          <div>
+            <label for="prof-shoes" class="block type-small mb-1.5">
+              Talla calzado
+            </label>
+            <input
+              id="prof-shoes"
+              type="text"
+              name="shoe_size"
+              value={user.shoe_size || ''}
+              placeholder="Ej. 41 / 9 US"
+            />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="prof-likes" class="block type-small mb-1.5">
+              Gustos generales, pasatiempos y colores favoritos
+            </label>
+            <textarea
+              id="prof-likes"
+              name="likes"
+              rows="3"
+              placeholder="Colores, libros, café, estilos o pasatiempos..."
+            >{user.likes || ''}</textarea>
+          </div>
+
+          <div>
+            <label for="prof-dislikes" class="block type-small mb-1.5">
+              Cosas que prefieres evitar o alergias
+            </label>
+            <textarea
+              id="prof-dislikes"
+              name="dislikes"
+              rows="3"
+              placeholder="Restricciones o alergias a tener en cuenta..."
+            >{user.dislikes || ''}</textarea>
+          </div>
+        </div>
+
+        <div>
+          <label for="prof-address" class="block type-small mb-1.5">
+            Dirección de envío o agencia preferida
+          </label>
+          <input
+            id="prof-address"
+            type="text"
+            name="shipping_address"
+            value={user.shipping_address || ''}
+            placeholder="Ciudad, dirección completa o sucursal de envíos"
+          />
+        </div>
+
+        <button type="submit" id="save-profile-btn" class="btn-primary">
+          Guardar mis datos
+        </button>
+      </form>
+    </section>
+  </div>
+
+  <script is:inline>
+    const avatarInput = document.getElementById('avatar-input');
+    const customUrlInput = document.getElementById('custom-avatar-url');
+    const avatarButtons = document.querySelectorAll('.avatar-choice');
+
+    avatarButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        avatarButtons.forEach((b) => {
+          b.style.backgroundColor = 'var(--surface)';
+          b.style.color = 'var(--ink)';
+        });
+        btn.style.backgroundColor = 'var(--accent)';
+        btn.style.color = 'var(--accent-ink)';
+        if (customUrlInput) customUrlInput.value = '';
+        if (avatarInput) avatarInput.value = btn.getAttribute('data-avatar') || 'SS';
+      });
+    });
+
+    customUrlInput?.addEventListener('input', () => {
+      if (customUrlInput.value.trim() && avatarInput) {
+        avatarInput.value = customUrlInput.value.trim();
+      }
+    });
+
+    const form = document.getElementById('profile-form');
+    const toast = document.getElementById('profile-toast');
+    const saveBtn = document.getElementById('save-profile-btn');
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!toast || !saveBtn) return;
+      toast.classList.add('hidden');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Guardando...';
+
+      const formData = new FormData(form);
+      const payload = Object.fromEntries(formData.entries());
+
+      try {
+        const res = await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+
+        toast.classList.remove('hidden');
+        if (!res.ok) {
+          toast.style.backgroundColor = 'var(--danger-bg)';
+          toast.style.color = 'var(--danger-ink)';
+          toast.textContent = data.error || 'Error al actualizar tus datos.';
+        } else {
+          toast.style.backgroundColor = 'var(--success-bg)';
+          toast.style.color = 'var(--success-ink)';
+          toast.textContent = 'Tus datos personales se actualizaron correctamente.';
+          setTimeout(() => window.location.reload(), 900);
+        }
+      } catch {
+        toast.classList.remove('hidden');
+        toast.style.backgroundColor = 'var(--danger-bg)';
+        toast.style.color = 'var(--danger-ink)';
+        toast.textContent = 'Error de conexión.';
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Guardar mis datos';
+      }
+    });
+  </script>
+</Layout>

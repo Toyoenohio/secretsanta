@@ -1,0 +1,248 @@
+---
+import '../styles/global.css';
+import type { User } from '../lib/db';
+import { formatAvatarLabel } from '../lib/auth';
+import ChristmasLights from '../components/ChristmasLights.astro';
+import Snowfall from '../components/Snowfall.astro';
+
+interface Props {
+  title: string;
+  user?: User | null;
+  activeTab?: 'rooms' | 'wishlist' | 'profile';
+  isLanding?: boolean;
+}
+
+const { title, user = null, activeTab, isLanding = false } = Astro.props;
+const isImageAvatar =
+  user?.avatar && (user.avatar.startsWith('http://') || user.avatar.startsWith('https://'));
+const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} · Secret Santa</title>
+    <link rel="preconnect" href="https://api.fontshare.com" />
+    <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap"
+      rel="stylesheet"
+    />
+    <script is:inline>
+      (function () {
+        const saved = localStorage.getItem('ss_theme');
+        if (saved === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+  </head>
+  <body class="flex flex-col">
+    <ChristmasLights />
+    <header class="w-full">
+      <div class="page-frame h-20 flex items-center justify-between gap-4">
+        <a href="/" class="inline-flex items-center gap-2.5 type-small font-semibold">
+          <span
+            class="w-4 h-4 inline-block"
+            style="background-color: var(--gold); clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);"
+            aria-hidden="true"
+          ></span>
+          <span>Secret Santa</span>
+        </a>
+
+        {user ? (
+          <div class="flex items-center gap-3 sm:gap-6">
+            <nav class="hidden md:flex items-center gap-6 type-small">
+              <a
+                href="/"
+                style={activeTab === 'rooms' ? 'color: var(--ink); font-weight: 600;' : 'color: var(--muted);'}
+              >
+                Mis salas
+              </a>
+              <a
+                href="/wishlist"
+                style={activeTab === 'wishlist' ? 'color: var(--ink); font-weight: 600;' : 'color: var(--muted);'}
+              >
+                Mi wishlist
+              </a>
+              <a
+                href="/profile"
+                style={activeTab === 'profile' ? 'color: var(--ink); font-weight: 600;' : 'color: var(--muted);'}
+              >
+                Mis datos
+              </a>
+            </nav>
+
+            <button
+              id="theme-toggle"
+              type="button"
+              class="btn-ghost"
+              title="Cambiar tema de color"
+            >
+              Tema
+            </button>
+
+            <button type="button" class="btn-ghost snow-toggle" data-snow-toggle aria-pressed="true">
+              Nieve
+            </button>
+
+            <a
+              href="/profile"
+              class="hidden sm:inline-flex items-center gap-2.5 py-1.5 px-3 rounded-full type-small"
+              style="background-color: var(--surface);"
+            >
+              <span class="monogram" style="width: 28px; height: 28px;">
+                {isImageAvatar ? (
+                  <img src={user.avatar} alt={user.name} width="28" height="28" />
+                ) : (
+                  <span>{avatarLabel}</span>
+                )}
+              </span>
+              <span class="truncate max-w-[120px]">
+                {user.nickname || user.name.split(' ')[0]}
+              </span>
+            </a>
+
+            <form action="/api/auth/logout" method="POST">
+              <button type="submit" class="btn-ghost">
+                Salir
+              </button>
+            </form>
+          </div>
+        ) : (
+          <nav class="flex items-center gap-4 sm:gap-6 type-small">
+            <span class="hidden sm:inline-flex">
+              <button type="button" class="btn-ghost snow-toggle" data-snow-toggle aria-pressed="true">
+                Nieve
+              </button>
+            </span>
+            <a href="/#como-funciona" class="hidden sm:inline" style="color: var(--muted);">
+              Cómo funciona
+            </a>
+            <a href="/#funciones" class="hidden sm:inline" style="color: var(--muted);">
+              Funciones
+            </a>
+            <a href="/login" style="color: var(--ink);">
+              Entrar
+            </a>
+            <a
+              href="/register"
+              role="button"
+              class="inline-flex items-center justify-center px-4 py-2 rounded-[6px] font-medium"
+              style="background-color: var(--accent); color: var(--accent-ink); min-height: 38px;"
+            >
+              Crear cuenta
+            </a>
+          </nav>
+        )}
+      </div>
+    </header>
+
+    <main class="flex-1 w-full">
+      <slot />
+    </main>
+
+    <!-- Single quiet line footer per direction.json -->
+    <footer class={isLanding ? 'pt-[22svh] pb-28' : 'pt-16 pb-32 md:pb-28'}>
+      <div class="page-frame space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-baseline gap-3 type-small">
+          <div style="color: var(--muted);">
+            Sorteo cerrado de amigo secreto
+          </div>
+          <div class="flex flex-wrap items-center gap-6">
+            <a href="/" style="color: var(--ink);">Salas</a>
+            <a href="/wishlist" style="color: var(--ink);">Wishlist</a>
+            <a href="/profile" style="color: var(--ink);">Perfil</a>
+            <a href="/register" style="color: var(--ink);">Registro</a>
+          </div>
+          <div class="md:text-right tabular" style="color: var(--muted);">
+            2026 · <a href="/login" style="color: var(--ink);">Acceso privado</a>
+          </div>
+        </div>
+
+        {isLanding && (
+          <p class="type-small max-w-none" style="color: var(--muted);">
+            Fotografía y archivo: <a href="https://commons.wikimedia.org/wiki/File:Gift_wrapping_with_long_white_silk_ribbon.jpg" style="color: var(--ink); text-decoration: underline;">“Gift wrapping with long white silk ribbon”</a> y <a href="https://commons.wikimedia.org/wiki/File:Gift_wrapping_in_a_jewellery_shop_2.jpg" style="color: var(--ink); text-decoration: underline;">“Gift wrapping in a jewellery shop 2”</a> por W.carter (<a href="https://creativecommons.org/licenses/by/4.0" style="color: var(--ink);">CC BY 4.0</a> / <a href="https://creativecommons.org/licenses/by-sa/4.0" style="color: var(--ink);">CC BY-SA 4.0</a>, Wikimedia Commons); <a href="https://www.metmuseum.org/art/collection/search/54965" style="color: var(--ink); text-decoration: underline;">“Incense Boxes with a Wrapping Cloth”</a> (Kubo Shunman, 1808, CC0, The Met); <a href="https://www.metmuseum.org/art/collection/search/55105" style="color: var(--ink); text-decoration: underline;">“Souvenirs Covered with Wrapping Cloth”</a> (1816, CC0, The Met); video <a href="https://commons.wikimedia.org/wiki/File:KLO_Creek_gurgles_during_an_early_winter_snowfall.webm" style="color: var(--ink); text-decoration: underline;">“KLO Creek gurgles during an early winter snowfall”</a> por Extemporalist (CC0, Wikimedia Commons).
+          </p>
+        )}
+      </div>
+    </footer>
+
+    {user && (
+      <nav
+        data-snow-ground
+        class="fixed bottom-0 left-0 right-0 md:hidden z-40 flex items-center justify-around py-3 px-4 type-small"
+        style="background-color: var(--surface);"
+      >
+        <a
+          href="/"
+          style={activeTab === 'rooms' ? 'color: var(--ink); font-weight: 600;' : 'color: var(--muted);'}
+        >
+          Salas
+        </a>
+        <a
+          href="/wishlist"
+          style={activeTab === 'wishlist' ? 'color: var(--ink); font-weight: 600;' : 'color: var(--muted);'}
+        >
+          Wishlist
+        </a>
+        <a
+          href="/profile"
+          style={activeTab === 'profile' ? 'color: var(--ink); font-weight: 600;' : 'color: var(--muted);'}
+        >
+          Mis datos
+        </a>
+      </nav>
+    )}
+
+    <Snowfall />
+
+    <script is:inline>
+      const themeBtn = document.getElementById('theme-toggle');
+      if (themeBtn) {
+        themeBtn.addEventListener('click', () => {
+          const isDark = document.documentElement.classList.toggle('dark');
+          localStorage.setItem('ss_theme', isDark ? 'dark' : 'light');
+        });
+      }
+
+      // Staggered reveal observer + reduced-motion video handler
+      (function () {
+        const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const items = document.querySelectorAll('.reveal-item');
+        if (reduced) {
+          items.forEach((el) => el.classList.add('is-visible'));
+          document.querySelectorAll('video[autoplay]').forEach((v) => {
+            try { v.pause(); } catch {}
+          });
+          return;
+        }
+
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('is-visible');
+                io.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.12, rootMargin: '0px 0px -40px 0px' }
+        );
+
+        items.forEach((el, idx) => {
+          const rect = el.getBoundingClientRect();
+          if (rect.top < window.innerHeight * 0.92) {
+            setTimeout(() => {
+              el.classList.add('is-visible');
+            }, 40 + (idx % 6) * 55);
+          } else {
+            io.observe(el);
+          }
+        });
+      })();
+    </script>
+  </body>
+</html>

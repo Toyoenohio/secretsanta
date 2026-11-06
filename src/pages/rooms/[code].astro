@@ -1,0 +1,1343 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getCurrentUser, formatAvatarLabel } from '../../lib/auth';
+import { sql, type Room, type RoomMember, type WishlistItem, type User } from '../../lib/db';
+import { computeSecretSantaDraw } from '../../lib/draw';
+
+const codeParam = (Astro.params.code || '').trim().toUpperCase();
+const user = await getCurrentUser(Astro.cookies);
+
+if (!user) {
+  return Astro.redirect(`/login?join=${encodeURIComponent(codeParam)}`);
+}
+
+const roomRows = await sql`
+  SELECT * FROM rooms WHERE UPPER(code) = ${codeParam} LIMIT 1
+`;
+
+if (roomRows.length === 0) {
+  return Astro.redirect('/?error=room_not_found');
+}
+
+const room = roomRows[0] as Room;
+
+let memberRows = (await sql`
+  SELECT
+    rm.id,
+    rm.room_id,
+    rm.user_id,
+    rm.assigned_receiver_id,
+    rm.card_number,
+    rm.has_revealed,
+    rm.revealed_at,
+    rm.joined_at,
+    u.name,
+    u.nickname,
+    u.email,
+    u.avatar
+  FROM room_members rm
+  JOIN users u ON u.id = rm.user_id
+  WHERE rm.room_id = ${room.id}
+  ORDER BY rm.joined_at ASC
+`) as RoomMember[];
+
+let myMembership = memberRows.find((m) => m.user_id === user.id) || null;
+
+// Auto-join if room is open and user is not a member yet
+if (!myMembership && room.status === 'open') {
+  await sql`
+    INSERT INTO room_members (room_id, user_id)
+    VALUES (${room.id}, ${user.id})
+    ON CONFLICT (room_id, user_id) DO NOTHING
+  `;
+  memberRows = (await sql`
+    SELECT
+      rm.id,
+      rm.room_id,
+      rm.user_id,
+      rm.assigned_receiver_id,
+      rm.card_number,
+      rm.has_revealed,
+      rm.revealed_at,
+      rm.joined_at,
+      u.name,
+      u.nickname,
+      u.email,
+      u.avatar
+    FROM room_members rm
+    JOIN users u ON u.id = rm.user_id
+    WHERE rm.room_id = ${room.id}
+    ORDER BY rm.joined_at ASC
+  `) as RoomMember[];
+  myMembership = memberRows.find((m) => m.user_id === user.id) || null;
+}
+
+const isOrganizer = room.organizer_id === user.id;
+
+const exclusions = await sql`
+  SELECT
+    re.id,
+    re.room_id,
+    re.giver_id,
+    re.excluded_receiver_id,
+    re.reason,
+    ug.name AS giver_name,
+    ur.name AS excluded_receiver_name
+  FROM room_exclusions re
+  JOIN users ug ON ug.id = re.giver_id
+  JOIN users ur ON ur.id = re.excluded_receiver_id
+  WHERE re.room_id = ${room.id}
+  ORDER BY re.created_at DESC
+`;
+
+const canDrawNow =
+  memberRows.length >= 2 &&
+  computeSecretSantaDraw(
+    memberRows.map((m) => m.user_id),
+    exclusions.map((e: any) => ({
+      giver_id: e.giver_id,
+      excluded_receiver_id: e.excluded_receiver_id,
+    }))
+  ) !== null;
+
+let assignedReceiver: User | null = null;
+let receiverWishlist: WishlistItem[] = [];
+let chatWithGiftee: any[] = [];
+let chatWithMySanta: any[] = [];
+
+if (room.status === 'drawn' && myMembership) {
+  if (myMembership.has_revealed && myMembership.assigned_receiver_id) {
+    const recRows = await sql`
+      SELECT
+        id, name, nickname, email, avatar, phone, shipping_address,
+        likes, dislikes, shirt_size, pants_size, shoe_size, created_at
+      FROM users
+      WHERE id = ${myMembership.assigned_receiver_id}
+      LIMIT 1
+    `;
+    assignedReceiver = (recRows[0] as User) || null;
+
+    if (assignedReceiver) {
+      receiverWishlist = (await sql`
+        SELECT
+          w.id,
+          w.user_id,
+          w.title,
+          w.notes,
+          w.url,
+          w.priority,
+          w.estimated_price,
+          w.reserved_by_user_id,
+          w.reserved_in_room_id,
+          w.reserved_at,
+          w.created_at,
+          r.name AS reserved_room_name
+        FROM wishlist_items w
+        LEFT JOIN rooms r ON r.id = w.reserved_in_room_id
+        WHERE w.user_id = ${assignedReceiver.id}
+        ORDER BY
+          CASE w.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END ASC,
+          w.created_at DESC
+      `) as WishlistItem[];
+
+      chatWithGiftee = await sql`
+        SELECT id, sender_id, receiver_id, sender_role, content, created_at
+        FROM anonymous_messages
+        WHERE room_id = ${room.id}
+          AND (
+            (sender_id = ${user.id} AND receiver_id = ${assignedReceiver.id} AND sender_role = 'santa')
+            OR
+            (sender_id = ${assignedReceiver.id} AND receiver_id = ${user.id} AND sender_role = 'giftee')
+          )
+        ORDER BY created_at ASC
+      `;
+    }
+  }
+
+  const mySantaRow = memberRows.find((m) => m.assigned_receiver_id === user.id);
+  if (mySantaRow) {
+    chatWithMySanta = await sql`
+      SELECT id, sender_id, receiver_id, sender_role, content, created_at
+      FROM anonymous_messages
+      WHERE room_id = ${room.id}
+        AND (
+          (sender_id = ${mySantaRow.user_id} AND receiver_id = ${user.id} AND sender_role = 'santa')
+          OR
+          (sender_id = ${user.id} AND receiver_id = ${mySantaRow.user_id} AND sender_role = 'giftee')
+        )
+      ORDER BY created_at ASC
+    `;
+  }
+}
+
+const takenCardNumbers = new Set(
+  memberRows.filter((m) => m.card_number != null).map((m) => Number(m.card_number))
+);
+
+const revealedCount = memberRows.filter((m) => m.has_revealed).length;
+
+const priorityBadge: Record<string, { label: string; badgeClass: string }> = {
+  high: {
+    label: 'Prioridad alta',
+    badgeClass: 'status-pill status-pill-accent',
+  },
+  medium: {
+    label: 'Prioridad media',
+    badgeClass: 'status-pill status-pill-warning',
+  },
+  low: {
+    label: 'Idea opcional',
+    badgeClass: 'status-pill status-pill-success',
+  },
+};
+
+const inviteUrl = `${Astro.url.origin}/?join=${room.code}`;
+const whatsappShareText = `Hola, únete a nuestro sorteo de Amigo Secreto "${room.name}" con el código ${room.code} entrando aquí: ${inviteUrl}`;
+const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(whatsappShareText)}`;
+
+const isDrawn = room.status === 'drawn';
+const hasRevealed = Boolean(myMembership?.has_revealed);
+---
+
+<Layout title={room.name} user={user} activeTab="rooms">
+  <div class="page-frame pt-8 pb-16">
+    {!myMembership ? (
+      <section class="surface-panel max-w-lg mx-auto py-12 text-center space-y-4">
+        <h1 class="type-h2">Sorteo ya iniciado</h1>
+        <p class="type-body mx-auto" style="color: var(--muted);">
+          Esta sala ya realizó el sorteo de papelitos y no perteneces a la lista actual de participantes. Si faltabas tú, pide al organizador que reabra las inscripciones.
+        </p>
+        <a href="/" class="btn-primary">Volver a mis salas</a>
+      </section>
+    ) : (
+      <div class="space-y-8" data-room-code={room.code} data-room-id={room.id} id="room-container">
+        <!-- Room Header -->
+        <section class="surface-panel space-y-6">
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div class="space-y-3 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <a href="/" class="status-pill">
+                  Volver a mis salas
+                </a>
+                <span class="status-pill status-pill-accent tabular">
+                  Código #{room.code}
+                </span>
+                {isOrganizer && (
+                  <span class="status-pill status-pill-warning">Organizador</span>
+                )}
+                <span class={`status-pill tabular ${isDrawn ? 'status-pill-success' : ''}`}>
+                  {isDrawn
+                    ? `Sorteo activo (${revealedCount}/${memberRows.length} abrieron su papelito)`
+                    : `Fase de registro (${memberRows.length} participantes)`}
+                </span>
+              </div>
+
+              <div class="space-y-1">
+                <h1 class="type-h2">{room.name}</h1>
+                {room.description && (
+                  <p class="type-body" style="color: var(--muted);">
+                    {room.description}
+                  </p>
+                )}
+              </div>
+
+              <div class="flex flex-wrap items-center gap-6 type-small tabular" style="color: var(--muted);">
+                <span>
+                  {(room.budget_min != null || room.budget_max != null)
+                    ? `Presupuesto: ${room.budget_min ?? 0} a ${room.budget_max ?? 'Sin límite'} ${room.currency}`
+                    : 'Presupuesto libre'}
+                </span>
+                <span>
+                  {room.exchange_date
+                    ? `Fecha de entrega: ${new Date(room.exchange_date).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                        timeZone: 'UTC',
+                      })}`
+                    : 'Ciclo 100% cerrado garantizado'}
+                </span>
+              </div>
+            </div>
+
+            <!-- Invite & Share Box -->
+            <div class="surface-card min-w-[280px] space-y-3">
+              <div class="type-small font-semibold">
+                Invitar amigos a esta sala
+              </div>
+              <div class="flex items-center gap-2">
+                <label for="invite-url-input" class="sr-only">Enlace de invitación</label>
+                <input
+                  type="text"
+                  readonly
+                  id="invite-url-input"
+                  value={inviteUrl}
+                  class="tabular type-small !min-h-[40px] !py-1.5"
+                />
+                <button
+                  type="button"
+                  id="copy-invite-btn"
+                  class="btn-secondary !min-h-[40px] !py-1.5 !px-3.5 type-small shrink-0"
+                >
+                  Copiar
+                </button>
+              </div>
+              <a
+                href={whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn-primary w-full !min-h-[42px] !py-2 type-small"
+              >
+                Compartir invitación por WhatsApp
+              </a>
+            </div>
+          </div>
+
+          <!-- 3-Step Status Bar -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <div class="surface-card !p-3.5 flex items-center justify-between">
+              <span class="type-small font-medium">Paso 1: Registro de grupo</span>
+              <span class="status-pill status-pill-success">Activo</span>
+            </div>
+            <div class="surface-card !p-3.5 flex items-center justify-between">
+              <span class="type-small font-medium">Paso 2: Elegir papelito</span>
+              <span class={`status-pill ${isDrawn ? 'status-pill-accent' : ''}`}>
+                {hasRevealed ? 'Completado' : isDrawn ? 'Disponible' : 'Pendiente'}
+              </span>
+            </div>
+            <div class="surface-card !p-3.5 flex items-center justify-between">
+              <span class="type-small font-medium">Paso 3: Wishlist y chat</span>
+              <span class={`status-pill ${hasRevealed ? 'status-pill-success' : ''}`}>
+                {hasRevealed ? 'Desbloqueado' : 'Al abrir sobre'}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Main Body Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div class="lg:col-span-8 space-y-8">
+            {room.status === 'open' ? (
+              <!-- PHASE 1: REGISTRATION OPEN -->
+              <section class="surface-panel space-y-6">
+                <div class="space-y-2">
+                  <span class="status-pill status-pill-accent">Fase de registro abierta</span>
+                  <h2 class="type-h2">
+                    Esperando al grupo para mezclar los papelitos
+                  </h2>
+                  <p class="type-body" style="color: var(--muted);">
+                    Para garantizar matemáticamente que nadie quede sin elegir ni sin ser elegido, el sorteo se habilita cuando todos los miembros estén registrados en la sala.
+                  </p>
+                </div>
+
+                <div class="surface-card flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div class="space-y-1">
+                    <div class="type-lead">Prepara tu wishlist mientras esperas</div>
+                    <p class="type-small" style="color: var(--muted);">
+                      Agrega ideas en solo texto o texto con enlace URL para que tu futuro amigo secreto sepa qué regalarte.
+                    </p>
+                  </div>
+                  <a href="/wishlist" class="btn-primary shrink-0 self-start sm:self-center">
+                    Editar mi wishlist
+                  </a>
+                </div>
+
+                {isOrganizer ? (
+                  <div class="space-y-6 pt-2">
+                    <!-- Organizer Draw Action -->
+                    <div class="surface-card space-y-4">
+                      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="space-y-1">
+                          <h3 class="type-lead">
+                            Panel del organizador: iniciar sorteo
+                          </h3>
+                          <p class="type-small" style="color: var(--muted);">
+                            Hay {memberRows.length} participante(s) en la sala. Al habilitar el sorteo, se generarán los sobres con un ciclo cerrado perfecto.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          id="start-draw-btn"
+                          disabled={!canDrawNow}
+                          class="btn-primary shrink-0"
+                        >
+                          Habilitar sorteo de papelitos
+                        </button>
+                      </div>
+
+                      {memberRows.length < 2 && (
+                        <p class="type-small font-medium" style="color: var(--danger-ink);">
+                          Se necesitan al menos 2 participantes unidos en la sala para habilitar el sorteo. Comparte el código {room.code}.
+                        </p>
+                      )}
+
+                      <div
+                        id="draw-error"
+                        class="hidden p-3.5 rounded-[8px] type-small"
+                        style="background-color: var(--danger-bg); color: var(--danger-ink);"
+                      ></div>
+                    </div>
+
+                    <!-- Exclusions Configurator -->
+                    <div class="surface-card space-y-4">
+                      <div class="space-y-1">
+                        <h3 class="type-lead">
+                          Reglas de exclusión (parejas o familiares)
+                        </h3>
+                        <p class="type-small" style="color: var(--muted);">
+                          Evita que ciertas personas se toquen entre sí. El algoritmo verifica al instante que nadie quede fuera del ciclo.
+                        </p>
+                      </div>
+
+                      <div
+                        id="exclusion-error"
+                        class="hidden p-3.5 rounded-[8px] type-small"
+                        style="background-color: var(--danger-bg); color: var(--danger-ink);"
+                      ></div>
+
+                      {memberRows.length >= 2 && (
+                        <form
+                          id="add-exclusion-form"
+                          class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+                        >
+                          <div class="sm:col-span-4">
+                            <label for="giver-select" class="block type-small mb-1.5">
+                              Participante A
+                            </label>
+                            <select id="giver-select" name="giver_id" required>
+                              {memberRows.map((m) => (
+                                <option value={m.user_id}>{m.nickname || m.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div class="sm:col-span-4">
+                            <label for="receiver-select" class="block type-small mb-1.5">
+                              No le regala a B
+                            </label>
+                            <select id="receiver-select" name="excluded_receiver_id" required>
+                              {memberRows.map((m, idx) => (
+                                <option value={m.user_id} selected={idx === 1}>
+                                  {m.nickname || m.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div class="sm:col-span-4 flex flex-col gap-2">
+                            <label class="inline-flex items-center gap-2 type-small cursor-pointer">
+                              <input type="checkbox" name="bidirectional" checked />
+                              <span>Mutuo (A y B no se regalan)</span>
+                            </label>
+                            <button type="submit" class="btn-secondary w-full">
+                              Agregar exclusión
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      {exclusions.length > 0 && (
+                        <div class="space-y-2 pt-2">
+                          {exclusions.map((ex: any) => (
+                            <div class="p-3 rounded-[6px] flex items-center justify-between gap-3" style="background-color: var(--surface);">
+                              <span class="type-small">
+                                {ex.giver_name} no le regala a {ex.excluded_receiver_name}
+                              </span>
+                              <button
+                                type="button"
+                                data-del-exclusion={ex.id}
+                                class="btn-ghost del-exclusion-btn"
+                                title="Eliminar exclusión"
+                              >
+                                Quitar
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div class="surface-card type-small" style="color: var(--muted);">
+                    El organizador de la sala habilitará la mesa de papelitos cuando todos los participantes se hayan unido.
+                  </div>
+                )}
+              </section>
+            ) : !myMembership.has_revealed ? (
+              <!-- PHASE 2A: INTERACTIVE PAPER / CARD SELECTION -->
+              <section class="surface-panel space-y-6">
+                <div class="space-y-2">
+                  <span class="status-pill status-pill-accent">Mesa de sorteo activa</span>
+                  <h2 class="type-h2">
+                    Elige tu papelito secreto
+                  </h2>
+                  <p class="type-body" style="color: var(--muted);">
+                    Selecciona cualquiera de los sobres disponibles para voltearlo, descubrir el nombre de tu amigo secreto y desbloquear su wishlist.
+                  </p>
+                </div>
+
+                <div
+                  id="reveal-status-banner"
+                  class="hidden p-4 rounded-[8px] type-body font-medium"
+                  style="background-color: var(--success-bg); color: var(--success-ink);"
+                ></div>
+
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pt-2">
+                  {memberRows.map((_, idx) => {
+                    const cardNum = idx + 1;
+                    const isTaken = takenCardNumbers.has(cardNum);
+                    return (
+                      <div class="perspective-1000 h-44">
+                        <button
+                          type="button"
+                          disabled={isTaken}
+                          data-card-num={cardNum}
+                          class={`secret-card-btn w-full h-full relative transform-style-3d rounded-[10px] border-0 ${
+                            isTaken ? 'opacity-45 cursor-not-allowed' : 'cursor-pointer'
+                          }`}
+                        >
+                          <!-- Front of Card -->
+                          <div
+                            class="absolute inset-0 backface-hidden rounded-[10px] p-4 flex flex-col items-start justify-between text-left"
+                            style={
+                              isTaken
+                                ? 'background-color: var(--surface-raised); color: var(--muted);'
+                                : 'background-color: var(--accent); color: var(--accent-ink);'
+                            }
+                          >
+                            <div class="w-full flex items-center justify-between type-small tabular">
+                              <span>Papelito</span>
+                              <span>#{cardNum}</span>
+                            </div>
+
+                            <div class="my-auto">
+                              <div class="type-lead">
+                                {isTaken ? 'Ya elegido' : 'Abrir sobre'}
+                              </div>
+                            </div>
+
+                            <div class="type-small opacity-85">
+                              {isTaken ? 'No disponible' : 'Ciclo cerrado'}
+                            </div>
+                          </div>
+
+                          <!-- Back of Card -->
+                          <div
+                            class="absolute inset-0 backface-hidden rotate-y-180 rounded-[10px] p-4 flex flex-col items-center justify-center text-center"
+                            style="background-color: var(--ui-paper); color: var(--ink);"
+                          >
+                            <span class="monogram mb-2 card-back-avatar">SS</span>
+                            <span class="type-small" style="color: var(--muted);">
+                              Tu amigo secreto es
+                            </span>
+                            <span class="type-lead mt-1 card-back-name">
+                              ...
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : assignedReceiver ? (
+              <!-- PHASE 2B: REVEALED! VIEW ASSIGNED PERSON, WISHLIST & LIVE WEBSOCKET CHAT -->
+              <div class="space-y-8" id="assigned-friend-section">
+                <!-- Assigned Person Profile Card -->
+                <section class="surface-panel space-y-6">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div class="flex items-center gap-4">
+                      <div class="monogram monogram-lg">
+                        {assignedReceiver.avatar.startsWith('http') ? (
+                          <img src={assignedReceiver.avatar} alt={assignedReceiver.name} width="56" height="56" />
+                        ) : (
+                          <span>{formatAvatarLabel(assignedReceiver.avatar, assignedReceiver.name)}</span>
+                        )}
+                      </div>
+                      <div class="space-y-1">
+                        <span class="status-pill status-pill-accent tabular">
+                          Tu amigo secreto asignado (Papelito #{myMembership.card_number || 1})
+                        </span>
+                        <h2 class="type-h2">
+                          {assignedReceiver.name}
+                        </h2>
+                        {assignedReceiver.nickname && (
+                          <p class="type-small" style="color: var(--muted);">
+                            Apodo: "{assignedReceiver.nickname}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <a href="#friend-wishlist" class="btn-primary self-start sm:self-center">
+                      Ver su wishlist ({receiverWishlist.length})
+                    </a>
+                  </div>
+
+                  <!-- Sizes Grid -->
+                  <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="surface-card !p-4 space-y-1">
+                      <span class="block type-small" style="color: var(--muted);">
+                        Talla camisa o blusa
+                      </span>
+                      <span class="type-lead tabular">
+                        {assignedReceiver.shirt_size || 'No especificada'}
+                      </span>
+                    </div>
+                    <div class="surface-card !p-4 space-y-1">
+                      <span class="block type-small" style="color: var(--muted);">
+                        Talla pantalón
+                      </span>
+                      <span class="type-lead tabular">
+                        {assignedReceiver.pants_size || 'No especificada'}
+                      </span>
+                    </div>
+                    <div class="surface-card !p-4 space-y-1">
+                      <span class="block type-small" style="color: var(--muted);">
+                        Talla calzado
+                      </span>
+                      <span class="type-lead tabular">
+                        {assignedReceiver.shoe_size || 'No especificada'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="surface-card space-y-1.5">
+                      <div class="type-small font-semibold">
+                        Gustos, colores y pasatiempos
+                      </div>
+                      <p class="type-small whitespace-pre-line" style="color: var(--muted);">
+                        {assignedReceiver.likes || 'No agregó detalles de gustos generales.'}
+                      </p>
+                    </div>
+
+                    <div class="surface-card space-y-1.5">
+                      <div class="type-small font-semibold">
+                        Restricciones o alergias
+                      </div>
+                      <p class="type-small whitespace-pre-line" style="color: var(--muted);">
+                        {assignedReceiver.dislikes || 'Ninguna restricción o alergia indicada.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {(assignedReceiver.phone || assignedReceiver.shipping_address) && (
+                    <div class="flex flex-wrap gap-6 type-small" style="color: var(--muted);">
+                      {assignedReceiver.phone && (
+                        <span>
+                          <strong>Teléfono o WhatsApp:</strong> {assignedReceiver.phone}
+                        </span>
+                      )}
+                      {assignedReceiver.shipping_address && (
+                        <span>
+                          <strong>Dirección de envío:</strong> {assignedReceiver.shipping_address}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                <!-- Assigned Person's Wishlist Section -->
+                <section id="friend-wishlist" class="surface-panel space-y-5">
+                  <div class="space-y-1">
+                    <h3 class="type-h2">
+                      Wishlist de {assignedReceiver.nickname || assignedReceiver.name}
+                    </h3>
+                    <p class="type-body" style="color: var(--muted);">
+                      Marca el regalo que decidas comprar. {assignedReceiver.nickname || assignedReceiver.name} nunca verá cuál marcaste, pero otros amigos secretos en otras salas sabrán que ya fue reservado.
+                    </p>
+                  </div>
+
+                  {receiverWishlist.length === 0 ? (
+                    <div class="surface-card py-10 text-center space-y-2">
+                      <p class="type-lead">
+                        {assignedReceiver.nickname || assignedReceiver.name} aún no ha agregado deseos a su wishlist
+                      </p>
+                      <p class="type-small mx-auto" style="color: var(--muted);">
+                        Usa el chat secreto en tiempo real aquí abajo para preguntarle qué le gustaría recibir sin revelar tu identidad.
+                      </p>
+                    </div>
+                  ) : (
+                    <div class="space-y-4">
+                      {receiverWishlist.map((item) => {
+                        const badge = priorityBadge[item.priority] || priorityBadge.medium;
+                        const reservedByMe = item.reserved_by_user_id === user.id;
+                        const reservedByOther =
+                          item.reserved_by_user_id != null && item.reserved_by_user_id !== user.id;
+
+                        return (
+                          <div class="surface-card flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                            <div class="space-y-2 flex-1 min-w-0">
+                              <div class="flex flex-wrap items-center gap-2">
+                                <span class={badge.badgeClass}>{badge.label}</span>
+                                {item.estimated_price && (
+                                  <span class="status-pill tabular">{item.estimated_price}</span>
+                                )}
+                                {reservedByMe && (
+                                  <span class="status-pill status-pill-success">
+                                    Elegido por ti para regalar
+                                  </span>
+                                )}
+                                {reservedByOther && (
+                                  <span class="status-pill status-pill-warning">
+                                    Reservado en otra sala ({item.reserved_room_name || 'Otro grupo'})
+                                  </span>
+                                )}
+                              </div>
+
+                              <h4 class="type-lead">{item.title}</h4>
+
+                              {item.notes && (
+                                <p class="type-small whitespace-pre-line" style="color: var(--muted);">
+                                  {item.notes}
+                                </p>
+                              )}
+
+                              {item.url && (
+                                <div class="pt-1">
+                                  <a
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="inline-flex items-center gap-2 type-small font-medium underline"
+                                    style="color: var(--accent);"
+                                  >
+                                    <span>Abrir enlace de referencia</span>
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+
+                            <div class="shrink-0">
+                              <button
+                                type="button"
+                                disabled={reservedByOther}
+                                data-reserve-id={item.id}
+                                class={`reserve-wish-btn ${
+                                  reservedByMe ? 'btn-primary !min-h-[40px] !py-2 !px-4 type-small' : 'btn-secondary !min-h-[40px] !py-2 !px-4 type-small'
+                                }`}
+                              >
+                                {reservedByMe
+                                  ? 'Comprado (desmarcar)'
+                                  : reservedByOther
+                                  ? 'Reservado en otra sala'
+                                  : 'Marcar como comprado'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+
+                <!-- Real-Time WebSocket Anonymous Chat Section -->
+                <section class="space-y-5" id="live-chat-section">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                      <h3 class="type-h2">
+                        Chat secreto en vivo
+                      </h3>
+                      <span id="ws-status-badge" class="status-pill status-pill-warning">
+                        <span id="ws-status-dot" class="w-2 h-2 rounded-full inline-block" style="background-color: var(--warning-ink);"></span>
+                        <span id="ws-status-text">Conectando WebSocket...</span>
+                      </span>
+                    </div>
+                    <span class="type-small" style="color: var(--muted);">
+                      Identidad 100% anónima
+                    </span>
+                  </div>
+
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Chat 1: Write anonymously to my assigned giftee -->
+                    <div
+                      class="surface-panel flex flex-col justify-between space-y-4"
+                      data-giftee-name={assignedReceiver.nickname || assignedReceiver.name}
+                      id="chat-card-giftee"
+                    >
+                      <div class="space-y-1">
+                        <div class="type-lead">
+                          Escríbele a {assignedReceiver.nickname || assignedReceiver.name}
+                        </div>
+                        <div class="type-small" style="color: var(--muted);">
+                          Tus mensajes le llegan bajo el seudónimo "Tu Amigo Secreto"
+                        </div>
+                      </div>
+
+                      <div
+                        id="chat-box-with-my-giftee"
+                        data-ui
+                        class="space-y-2.5 h-64 overflow-y-auto p-4 rounded-[8px]"
+                      >
+                        {chatWithGiftee.length === 0 ? (
+                          <p
+                            id="empty-with-my-giftee"
+                            class="type-small text-center py-8"
+                            style="color: var(--muted);"
+                          >
+                            Aún no le has escrito a {assignedReceiver.nickname || assignedReceiver.name}. Envíale un saludo o pregúntale sobre su regalo.
+                          </p>
+                        ) : (
+                          chatWithGiftee.map((msg) => (
+                            <div
+                              data-msg-id={msg.id}
+                              class="p-3 rounded-[8px] type-small"
+                              style={
+                                msg.sender_role === 'santa'
+                                  ? 'background-color: var(--accent); color: var(--accent-ink); margin-left: 1.5rem;'
+                                  : 'background-color: var(--bg); color: var(--ink); margin-right: 1.5rem;'
+                              }
+                            >
+                              <div class="flex items-center justify-between gap-2 type-small opacity-85 mb-1 tabular">
+                                <span>
+                                  {msg.sender_role === 'santa'
+                                    ? 'Tú (como Amigo Secreto)'
+                                    : assignedReceiver.nickname || assignedReceiver.name}
+                                </span>
+                                <span>
+                                  {new Date(msg.created_at).toLocaleTimeString('es-ES', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+                              <p class="type-small break-words" style="color: inherit;">{msg.content}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div
+                        id="typing-with-my-giftee"
+                        class="hidden type-small italic px-1"
+                        style="color: var(--accent);"
+                      >
+                        {assignedReceiver.nickname || assignedReceiver.name} está escribiendo...
+                      </div>
+
+                      <form class="anon-msg-form flex gap-2" data-role="santa">
+                        <input
+                          type="text"
+                          name="content"
+                          autocomplete="off"
+                          required
+                          placeholder={`Escribe en secreto a ${assignedReceiver.nickname || assignedReceiver.name}...`}
+                          class="flex-1"
+                        />
+                        <button type="submit" class="btn-primary shrink-0">
+                          Enviar
+                        </button>
+                      </form>
+                    </div>
+
+                    <!-- Chat 2: Messages from the anonymous Secret Santa who drew ME -->
+                    <div class="surface-panel flex flex-col justify-between space-y-4">
+                      <div class="space-y-1">
+                        <div class="type-lead">Chat con quien te regala a ti</div>
+                        <div class="type-small" style="color: var(--muted);">
+                          Tu amigo secreto te escribe aquí sin revelar su identidad
+                        </div>
+                      </div>
+
+                      <div
+                        id="chat-box-with-my-santa"
+                        data-ui
+                        class="space-y-2.5 h-64 overflow-y-auto p-4 rounded-[8px]"
+                      >
+                        {chatWithMySanta.length === 0 ? (
+                          <p
+                            id="empty-with-my-santa"
+                            class="type-small text-center py-8"
+                            style="color: var(--muted);"
+                          >
+                            Tu amigo secreto aún no te ha escrito, o puedes dejarle una pista aquí mismo.
+                          </p>
+                        ) : (
+                          chatWithMySanta.map((msg) => (
+                            <div
+                              data-msg-id={msg.id}
+                              class="p-3 rounded-[8px] type-small"
+                              style={
+                                msg.sender_role === 'giftee'
+                                  ? 'background-color: var(--accent); color: var(--accent-ink); margin-left: 1.5rem;'
+                                  : 'background-color: var(--bg); color: var(--ink); margin-right: 1.5rem;'
+                              }
+                            >
+                              <div class="flex items-center justify-between gap-2 type-small opacity-85 mb-1 tabular">
+                                <span>
+                                  {msg.sender_role === 'giftee' ? 'Tú' : 'Tu Amigo Secreto'}
+                                </span>
+                                <span>
+                                  {new Date(msg.created_at).toLocaleTimeString('es-ES', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+                              <p class="type-small break-words" style="color: inherit;">{msg.content}</p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div
+                        id="typing-with-my-santa"
+                        class="hidden type-small italic px-1"
+                        style="color: var(--accent);"
+                      >
+                        Tu Amigo Secreto está escribiendo...
+                      </div>
+
+                      <form class="anon-msg-form flex gap-2" data-role="giftee">
+                        <input
+                          type="text"
+                          name="content"
+                          autocomplete="off"
+                          required
+                          placeholder="Escribe una pista o responde a tu Amigo Secreto..."
+                          class="flex-1"
+                        />
+                        <button type="submit" class="btn-secondary shrink-0">
+                          Responder
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+          </div>
+
+          <!-- Right Sidebar: Participants List (4 cols) -->
+          <aside class="lg:col-span-4 space-y-6">
+            <section class="surface-panel space-y-4">
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="type-lead">
+                  Participantes ({memberRows.length})
+                </h2>
+                <span class="status-pill status-pill-accent">Ciclo cerrado</span>
+              </div>
+
+              <div class="space-y-2.5">
+                {memberRows.map((m) => {
+                  const isMe = m.user_id === user.id;
+                  const isRoomOrg = m.user_id === room.organizer_id;
+                  const isImg = m.avatar.startsWith('http');
+                  return (
+                    <div class="surface-card !p-3 flex items-center justify-between gap-3">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <div class="monogram">
+                          {isImg ? (
+                            <img src={m.avatar} alt={m.name} width="40" height="40" />
+                          ) : (
+                            <span>{formatAvatarLabel(m.avatar, m.name)}</span>
+                          )}
+                        </div>
+                        <div class="min-w-0">
+                          <div class="type-small font-semibold truncate">
+                            {m.name} {isMe && <span style="color: var(--accent);">(Tú)</span>}
+                          </div>
+                          <div class="type-small truncate" style="color: var(--muted);">
+                            {m.nickname ? `"${m.nickname}"` : 'Participante'}
+                            {isRoomOrg ? ' · Organizador' : ''}
+                          </div>
+                        </div>
+                      </div>
+
+                      {room.status === 'drawn' && (
+                        <span class={`status-pill shrink-0 tabular ${m.has_revealed ? 'status-pill-success' : 'status-pill-warning'}`}>
+                          {m.has_revealed ? `Sobre #${m.card_number}` : 'Pendiente'}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {isOrganizer && room.status === 'drawn' && (
+                <div class="pt-2">
+                  <button
+                    type="button"
+                    id="reset-draw-btn"
+                    class="btn-ghost w-full"
+                  >
+                    Reabrir inscripciones y reiniciar sorteo
+                  </button>
+                </div>
+              )}
+            </section>
+          </aside>
+        </div>
+      </div>
+    )}
+  </div>
+
+  <script is:inline>
+    const container = document.getElementById('room-container');
+    const roomCode = container?.getAttribute('data-room-code') || '';
+    const roomId = container?.getAttribute('data-room-id') || '';
+
+    const copyBtn = document.getElementById('copy-invite-btn');
+    const inviteInput = document.getElementById('invite-url-input');
+    copyBtn?.addEventListener('click', () => {
+      if (!inviteInput) return;
+      navigator.clipboard.writeText(inviteInput.value);
+      copyBtn.textContent = 'Copiado';
+      setTimeout(() => {
+        copyBtn.textContent = 'Copiar';
+      }, 2000);
+    });
+
+    const exclusionForm = document.getElementById('add-exclusion-form');
+    const exclusionError = document.getElementById('exclusion-error');
+    exclusionForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      exclusionError?.classList.add('hidden');
+      const formData = new FormData(exclusionForm);
+      const payload = {
+        giver_id: formData.get('giver_id'),
+        excluded_receiver_id: formData.get('excluded_receiver_id'),
+        bidirectional: formData.get('bidirectional') === 'on',
+      };
+
+      const res = await fetch(`/api/rooms/${roomCode}/exclusions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (exclusionError) {
+          exclusionError.textContent = data.error || 'No se pudo guardar la exclusión.';
+          exclusionError.classList.remove('hidden');
+        }
+        return;
+      }
+      window.location.reload();
+    });
+
+    document.querySelectorAll('.del-exclusion-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-del-exclusion');
+        if (!id) return;
+        await fetch(`/api/rooms/${roomCode}/exclusions`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        window.location.reload();
+      });
+    });
+
+    const startDrawBtn = document.getElementById('start-draw-btn');
+    const drawError = document.getElementById('draw-error');
+    startDrawBtn?.addEventListener('click', async () => {
+      drawError?.classList.add('hidden');
+      startDrawBtn.disabled = true;
+      startDrawBtn.textContent = 'Mezclando papelitos...';
+
+      const res = await fetch(`/api/rooms/${roomCode}/draw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'draw' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (drawError) {
+          drawError.textContent = data.error || 'Error al iniciar el sorteo.';
+          drawError.classList.remove('hidden');
+        }
+        startDrawBtn.disabled = false;
+        startDrawBtn.textContent = 'Habilitar sorteo de papelitos';
+        return;
+      }
+      window.location.reload();
+    });
+
+    const resetDrawBtn = document.getElementById('reset-draw-btn');
+    resetDrawBtn?.addEventListener('click', async () => {
+      resetDrawBtn.disabled = true;
+      resetDrawBtn.textContent = 'Reiniciando...';
+      await fetch(`/api/rooms/${roomCode}/draw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset' }),
+      });
+      window.location.reload();
+    });
+
+    const cardButtons = document.querySelectorAll('.secret-card-btn');
+    const revealBanner = document.getElementById('reveal-status-banner');
+    let pickingInProgress = false;
+
+    cardButtons.forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (pickingInProgress || btn.disabled) return;
+        pickingInProgress = true;
+        const cardNumber = Number(btn.getAttribute('data-card-num')) || 1;
+
+        try {
+          const res = await fetch(`/api/rooms/${roomCode}/reveal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cardNumber }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            pickingInProgress = false;
+            return;
+          }
+
+          const nameEl = btn.querySelector('.card-back-name');
+          const avatarEl = btn.querySelector('.card-back-avatar');
+          if (nameEl && data.receiver) {
+            nameEl.textContent = data.receiver.nickname || data.receiver.name;
+          }
+          if (avatarEl && data.receiver) {
+            const initials = (data.receiver.name || 'SS')
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((p) => p[0]?.toUpperCase() || '')
+              .join('');
+            avatarEl.textContent = initials || 'SS';
+          }
+
+          btn.classList.add('card-flipped');
+
+          if (revealBanner && data.receiver) {
+            revealBanner.textContent = `Sacaste el papelito #${cardNumber}. Tu amigo secreto es ${data.receiver.name}. Cargando su wishlist...`;
+            revealBanner.classList.remove('hidden');
+          }
+
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } catch {
+          pickingInProgress = false;
+        }
+      });
+    });
+
+    document.querySelectorAll('.reserve-wish-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const itemId = btn.getAttribute('data-reserve-id');
+        if (!itemId) return;
+        btn.disabled = true;
+        const res = await fetch('/api/wishlist/reserve', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId, roomId }),
+        });
+        if (res.ok) {
+          window.location.reload();
+        } else {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    // Real-Time Anonymous Chat via WebSocket
+    const chatBoxGiftee = document.getElementById('chat-box-with-my-giftee');
+    const chatBoxSanta = document.getElementById('chat-box-with-my-santa');
+    const wsBadge = document.getElementById('ws-status-badge');
+    const wsDot = document.getElementById('ws-status-dot');
+    const wsText = document.getElementById('ws-status-text');
+    const gifteeCard = document.getElementById('chat-card-giftee');
+    const gifteeDisplayName = gifteeCard?.getAttribute('data-giftee-name') || 'Tu asignado';
+
+    function scrollToBottom(el) {
+      if (el) {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    scrollToBottom(chatBoxGiftee);
+    scrollToBottom(chatBoxSanta);
+
+    function formatTime(isoString) {
+      try {
+        return new Date(isoString).toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+      } catch {
+        return '';
+      }
+    }
+
+    function appendMessageBubble(channel, msg) {
+      const box = channel === 'with_my_giftee' ? chatBoxGiftee : chatBoxSanta;
+      if (!box) return;
+
+      if (msg.id && box.querySelector(`[data-msg-id="${msg.id}"]`)) {
+        return;
+      }
+
+      const emptyId =
+        channel === 'with_my_giftee' ? 'empty-with-my-giftee' : 'empty-with-my-santa';
+      const emptyEl = document.getElementById(emptyId);
+      if (emptyEl) emptyEl.remove();
+
+      const wrapper = document.createElement('div');
+      if (msg.id) wrapper.setAttribute('data-msg-id', msg.id);
+
+      const isMine =
+        (channel === 'with_my_giftee' && msg.sender_role === 'santa') ||
+        (channel === 'with_my_santa' && msg.sender_role === 'giftee');
+
+      wrapper.className = 'p-3 rounded-[8px] type-small';
+      if (isMine) {
+        wrapper.style.backgroundColor = 'var(--accent)';
+        wrapper.style.color = 'var(--accent-ink)';
+        wrapper.style.marginLeft = '1.5rem';
+      } else {
+        wrapper.style.backgroundColor = 'var(--bg)';
+        wrapper.style.color = 'var(--ink)';
+        wrapper.style.marginRight = '1.5rem';
+      }
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between gap-2 type-small opacity-85 mb-1 tabular';
+
+      const authorSpan = document.createElement('span');
+      if (channel === 'with_my_giftee') {
+        authorSpan.textContent = isMine
+          ? 'Tú (como Amigo Secreto)'
+          : gifteeDisplayName;
+      } else {
+        authorSpan.textContent = isMine ? 'Tú' : 'Tu Amigo Secreto';
+      }
+
+      const timeSpan = document.createElement('span');
+      timeSpan.textContent = formatTime(msg.created_at);
+
+      header.appendChild(authorSpan);
+      header.appendChild(timeSpan);
+
+      const contentP = document.createElement('p');
+      contentP.className = 'type-small break-words';
+      contentP.style.color = 'inherit';
+      contentP.textContent = msg.content;
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(contentP);
+      box.appendChild(wrapper);
+      scrollToBottom(box);
+    }
+
+    let ws = null;
+    let typingTimers = {};
+
+    function setWsBadgeState(connected) {
+      if (!wsBadge || !wsDot || !wsText) return;
+      if (connected) {
+        wsBadge.className = 'status-pill status-pill-success';
+        wsDot.style.backgroundColor = 'var(--success-ink)';
+        wsText.textContent = 'En vivo (WebSocket)';
+      } else {
+        wsBadge.className = 'status-pill status-pill-warning';
+        wsDot.style.backgroundColor = 'var(--warning-ink)';
+        wsText.textContent = 'Reconectando WebSocket...';
+      }
+    }
+
+    function connectWebSocket() {
+      if (!roomCode || (!chatBoxGiftee && !chatBoxSanta)) return;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/chat?room=${encodeURIComponent(roomCode)}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.addEventListener('open', () => {
+        setWsBadgeState(true);
+      });
+
+      ws.addEventListener('message', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'new_message' && data.channel && data.message) {
+            appendMessageBubble(data.channel, data.message);
+            const typingEl = document.getElementById(
+              data.channel === 'with_my_giftee'
+                ? 'typing-with-my-giftee'
+                : 'typing-with-my-santa'
+            );
+            if (typingEl) typingEl.classList.add('hidden');
+          } else if (data.type === 'typing' && data.channel) {
+            const typingEl = document.getElementById(
+              data.channel === 'with_my_giftee'
+                ? 'typing-with-my-giftee'
+                : 'typing-with-my-santa'
+            );
+            if (typingEl) {
+              if (data.isTyping) {
+                typingEl.classList.remove('hidden');
+                clearTimeout(typingTimers[data.channel]);
+                typingTimers[data.channel] = setTimeout(() => {
+                  typingEl.classList.add('hidden');
+                }, 3000);
+              } else {
+                typingEl.classList.add('hidden');
+              }
+            }
+          }
+        } catch (err) {
+          console.error('WS parse error:', err);
+        }
+      });
+
+      ws.addEventListener('close', () => {
+        setWsBadgeState(false);
+        setTimeout(connectWebSocket, 2500);
+      });
+    }
+
+    connectWebSocket();
+
+    document.querySelectorAll('.anon-msg-form').forEach((form) => {
+      const role = form.getAttribute('data-role') || 'santa';
+      const input = form.querySelector('input[name="content"]');
+      let stopTypingTimeout = null;
+
+      input?.addEventListener('input', () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'typing', role, isTyping: true }));
+          clearTimeout(stopTypingTimeout);
+          stopTypingTimeout = setTimeout(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'typing', role, isTyping: false }));
+            }
+          }, 2000);
+        }
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!input || !input.value.trim()) return;
+
+        const content = input.value.trim();
+        input.value = '';
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'chat_message', role, content }));
+          ws.send(JSON.stringify({ type: 'typing', role, isTyping: false }));
+          return;
+        }
+
+        const res = await fetch(`/api/rooms/${roomCode}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role, content }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const targetChannel = role === 'santa' ? 'with_my_giftee' : 'with_my_santa';
+          if (data.message) {
+            appendMessageBubble(targetChannel, data.message);
+          }
+        }
+      });
+    });
+  </script>
+</Layout>

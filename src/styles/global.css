@@ -1,0 +1,594 @@
+@import "tailwindcss";
+
+:root {
+  /* Winter palette: snow-grey ground, Christmas red, pine green, gold */
+  --bg: #e6e9ea;
+  --surface: #d9dfe1;
+  --surface-raised: #eef1f2;
+  --ui-paper: #f4f6f7;
+  --ink: #1d211f;
+  --muted: #4b524f;
+  --accent: #b3261e;
+  --accent-hover: #921d17;
+  --accent-ink: #ffffff;
+  --field-bg: #1f3d2b;
+  --field-surface: #183222;
+  --field-ink: #ffffff;
+  --field-muted: #cfe0d4;
+  --gold: #d9a441;
+  --danger-bg: #f1d4d0;
+  --danger-ink: #6e1a14;
+  --success-bg: #cfe0d4;
+  --success-ink: #1a3a26;
+  --warning-bg: #f0e2c2;
+  --warning-ink: #4d3a10;
+
+  /* Garland bulbs and wire */
+  --bulb-red: #e8352b;
+  --bulb-gold: #f6c445;
+  --bulb-green: #3fbf6a;
+  --bulb-blue: #4aa8f0;
+  --bulb-wire: #22302a;
+
+  --font-sans: 'Switzer', system-ui, -apple-system, sans-serif;
+
+  --fs-display: clamp(2.25rem, 3.8vw, 3.75rem);
+  --fs-h2: clamp(1.625rem, 2.4vw, 2.375rem);
+  --fs-lead: 1.25rem;
+  --fs-body: 1.0625rem;
+  --fs-small: 0.875rem;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 9999px;
+
+  --ease-out-strong: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html.dark {
+  --bg: #0f1914;
+  --surface: #16241c;
+  --surface-raised: #1d2e24;
+  --ui-paper: #1a2a21;
+  --ink: #eef2ef;
+  --muted: #a9b8ae;
+  --accent: #d2463b;
+  --accent-hover: #e05a4f;
+  --accent-ink: #ffffff;
+  --field-bg: #0b2417;
+  --field-surface: #081c11;
+  --field-ink: #f2f5ee;
+  --field-muted: #c2d6c8;
+  --gold: #e8b85a;
+  --danger-bg: #42201b;
+  --danger-ink: #f5c2ba;
+  --success-bg: #173823;
+  --success-ink: #c6e6d0;
+  --warning-bg: #3b3116;
+  --warning-ink: #ebd8a7;
+  --bulb-wire: #0a110d;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  overflow-x: clip;
+  transition: background-color 200ms var(--ease-out-strong), color 200ms var(--ease-out-strong);
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+  color: var(--ink);
+}
+
+p {
+  margin: 0;
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  color: var(--ink);
+  max-width: 62ch;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color 160ms var(--ease-out-strong), opacity 160ms var(--ease-out-strong), background-color 160ms var(--ease-out-strong);
+}
+
+/* Shared frame with equal left/right margins across header, main and footer */
+.page-frame {
+  width: 100%;
+  max-width: 1320px;
+  margin-inline: auto;
+  padding-inline: clamp(20px, 4vw, 48px);
+}
+
+/* Typography utilities restricted to the 5-step scale */
+.type-display {
+  font-size: var(--fs-display);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.type-h2 {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+}
+
+.type-lead {
+  font-size: var(--fs-lead);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.35;
+}
+
+.type-body {
+  font-size: var(--fs-body);
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.type-small {
+  font-size: var(--fs-small);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Surfaces: separated by flat tone step, never 1px borders or resting shadows */
+.surface-panel {
+  background-color: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: clamp(20px, 2.5vw, 32px);
+}
+
+.surface-card {
+  background-color: var(--surface-raised);
+  border-radius: var(--radius-md);
+  padding: clamp(18px, 2vw, 24px);
+  transition: transform 200ms var(--ease-out-strong), background-color 180ms var(--ease-out-strong);
+}
+
+a.surface-card:hover {
+  transform: translateY(-2px);
+}
+
+.field-band {
+  background-color: var(--field-bg);
+  color: var(--field-ink);
+}
+
+.field-band h1,
+.field-band h2,
+.field-band h3,
+.field-band p {
+  color: var(--field-ink);
+}
+
+/* Interface fragments marked data-ui follow the product's own crisp paper conventions */
+[data-ui] {
+  background-color: var(--ui-paper);
+  color: var(--ink);
+  border-radius: var(--radius-md);
+  font-variant-numeric: tabular-nums;
+}
+
+[data-ui] .ui-row {
+  background-color: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: transform 180ms var(--ease-out-strong), background-color 180ms var(--ease-out-strong);
+}
+
+/* Buttons: flat fill, solid colour, 44px+ hit target, tactile transform feedback */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 11px 22px;
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform 160ms var(--ease-out-strong), background-color 160ms var(--ease-out-strong), opacity 160ms var(--ease-out-strong);
+}
+
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 11px 20px;
+  background-color: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: transform 160ms var(--ease-out-strong), background-color 160ms var(--ease-out-strong);
+}
+
+.btn-secondary:hover {
+  background-color: var(--surface-raised);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+  transform: translateY(0) scale(0.99);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  background-color: transparent;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 160ms var(--ease-out-strong), color 160ms var(--ease-out-strong);
+}
+
+.btn-ghost:hover {
+  background-color: var(--surface);
+}
+
+/* Form controls: real inputs keep clean structure and readable 17px text */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+textarea,
+select {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 14px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  background-color: var(--ui-paper);
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 160ms var(--ease-out-strong), background-color 160ms var(--ease-out-strong);
+}
+
+textarea {
+  min-height: 88px;
+  resize: vertical;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent);
+  background-color: #ffffff;
+}
+
+html.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+html.dark textarea:focus,
+html.dark select:focus {
+  background-color: var(--surface-raised);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+
+/* Range input for "Drag through the stages" blueprint */
+input[type="range"].stage-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 8px;
+  background: var(--surface);
+  border-radius: 0;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"].stage-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border: none;
+  border-radius: 2px;
+  cursor: grab;
+  transition: transform 150ms var(--ease-out-strong), background-color 150ms var(--ease-out-strong);
+}
+
+input[type="range"].stage-slider::-webkit-slider-thumb:hover {
+  background: var(--accent-hover);
+  transform: scale(1.06);
+}
+
+input[type="range"].stage-slider::-moz-range-thumb {
+  width: 32px;
+  height: 32px;
+  background: var(--accent);
+  border: none;
+  border-radius: 2px;
+  cursor: grab;
+}
+
+/* Status pills and monogram avatars (all >= 14px, flat tone steps) */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-small);
+  font-weight: 500;
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
+.status-pill-accent {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.status-pill-success {
+  background-color: var(--success-bg);
+  color: var(--success-ink);
+}
+
+.status-pill-warning {
+  background-color: var(--warning-bg);
+  color: var(--warning-ink);
+}
+
+.status-pill-danger {
+  background-color: var(--danger-bg);
+  color: var(--danger-ink);
+}
+
+.monogram {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.monogram img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.monogram-lg {
+  width: 56px;
+  height: 56px;
+  font-size: var(--fs-lead);
+}
+
+/* 3D Paper Slip Flip for Secret Santa Draw */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+  transition: transform 650ms var(--ease-out-strong);
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+.card-flipped {
+  transform: rotateY(180deg);
+}
+
+/* Motion Layer: Staggered Section Reveal (transform + opacity only) */
+.reveal-item {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 520ms var(--ease-out-strong), transform 520ms var(--ease-out-strong);
+}
+
+.reveal-item.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reveal-delay-1 {
+  transition-delay: 90ms;
+}
+
+.reveal-delay-2 {
+  transition-delay: 180ms;
+}
+
+.reveal-delay-3 {
+  transition-delay: 270ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-item,
+  .reveal-delay-1,
+  .reveal-delay-2,
+  .reveal-delay-3 {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Christmas layer: CSS garland lights + falling, piling snow canvas
+   ------------------------------------------------------------------ */
+.xmas-lights {
+  position: relative;
+  z-index: 50;
+  width: 100%;
+  height: 46px;
+  overflow-x: clip;
+  overflow-y: visible;
+  pointer-events: none;
+}
+
+.xmas-lights ul {
+  display: flex;
+  width: max-content;
+  margin: 0;
+  padding: 0 0 0 10px;
+  list-style: none;
+}
+
+.xmas-lights li {
+  --c: var(--bulb-red);
+  position: relative;
+  flex: none;
+  width: 12px;
+  height: 20px;
+  margin: 16px 18px 0;
+  border-radius: 50% 50% 50% 50% / 42% 42% 58% 58%;
+  background-color: var(--c);
+  box-shadow: 0 6px 18px 3px var(--c); /* taste-skill-ignore: bulb glow is the point */
+  animation: bulb-flash 1.6s ease-in-out infinite alternate;
+}
+
+/* Socket */
+.xmas-lights li::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 2px;
+  width: 8px;
+  height: 7px;
+  border-radius: 2px 2px 1px 1px;
+  background-color: var(--bulb-wire);
+}
+
+/* Wire sagging to the next bulb (bulb centres are 48px apart) */
+.xmas-lights li::after {
+  content: '';
+  position: absolute;
+  top: -16px;
+  left: 6px;
+  width: 48px;
+  height: 18px;
+  border-bottom: 2px solid var(--bulb-wire);
+  border-radius: 50%;
+}
+
+.xmas-lights li:nth-child(4n + 2) { --c: var(--bulb-gold); animation-duration: 1.1s; animation-delay: -0.4s; }
+.xmas-lights li:nth-child(4n + 3) { --c: var(--bulb-green); animation-duration: 1.9s; animation-delay: -1.1s; }
+.xmas-lights li:nth-child(4n + 4) { --c: var(--bulb-blue); animation-duration: 1.3s; animation-delay: -0.7s; }
+.xmas-lights li:nth-child(3n + 1) { animation-delay: -0.9s; }
+.xmas-lights li:nth-child(5n) { animation-duration: 0.8s; }
+
+@keyframes bulb-flash {
+  0%,
+  45% {
+    opacity: 1;
+    box-shadow: 0 6px 18px 3px var(--c); /* taste-skill-ignore */
+  }
+  100% {
+    opacity: 0.35;
+    box-shadow: 0 2px 4px 0 transparent; /* taste-skill-ignore */
+  }
+}
+
+/* Snow canvas covers the viewport, never catches clicks */
+.snow-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100svh;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.snow-toggle[aria-pressed='false'] {
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xmas-lights li {
+    animation: none;
+  }
+}
