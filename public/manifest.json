@@ -1,0 +1,55 @@
+{
+  "name": "Secret Santa · Amigo Secreto",
+  "short_name": "Secret Santa",
+  "description": "Organiza tu intercambio de amigo secreto con sorteos de ciclo cerrado, wishlist interactiva y chat anónimo en vivo.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1914",
+  "theme_color": "#b3261e",
+  "orientation": "portrait-primary",
+  "lang": "es",
+  "categories": ["social", "entertainment", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mis Salas",
+      "short_name": "Salas",
+      "description": "Ver tus salas activas de amigo secreto",
+      "url": "/",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Mi Wishlist",
+      "short_name": "Wishlist",
+      "description": "Administrar tus regalos deseados",
+      "url": "/wishlist",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

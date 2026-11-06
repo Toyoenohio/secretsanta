@@ -22,8 +22,21 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>{title} · Secret Santa</title>
+
+    <!-- PWA & Mobile Web App Meta -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="theme-color" content="#b3261e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Secret Santa" />
+    <meta name="application-name" content="Secret Santa" />
+
     <link rel="preconnect" href="https://api.fontshare.com" />
     <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
     <link
@@ -88,6 +101,16 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
               Nieve
             </button>
 
+            <button
+              type="button"
+              class="btn-ghost"
+              data-pwa-install
+              style="display: none;"
+              title="Instalar como app en tu teléfono o computadora"
+            >
+              Instalar
+            </button>
+
             <a
               href="/profile"
               class="hidden sm:inline-flex items-center gap-2.5 py-1.5 px-3 rounded-full type-small"
@@ -113,6 +136,15 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
           </div>
         ) : (
           <nav class="flex items-center gap-4 sm:gap-6 type-small">
+            <button
+              type="button"
+              class="btn-ghost"
+              data-pwa-install
+              style="display: none;"
+              title="Instalar como app en tu teléfono o computadora"
+            >
+              Instalar
+            </button>
             <span class="hidden sm:inline-flex">
               <button type="button" class="btn-ghost snow-toggle" data-snow-toggle aria-pressed="true">
                 Nieve
@@ -241,6 +273,64 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
           } else {
             io.observe(el);
           }
+        });
+      })();
+
+      // Register PWA Service Worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('/sw.js')
+            .then((reg) => {
+              // Check for SW updates periodically
+              reg.onupdatefound = () => {
+                const installing = reg.installing;
+                if (installing) {
+                  installing.onstatechange = () => {
+                    if (installing.state === 'installed' && navigator.serviceWorker.controller) {
+                      // New content available, updated in background
+                    }
+                  };
+                }
+              };
+            })
+            .catch((err) => {
+              console.warn('PWA service worker registration failed:', err);
+            });
+        });
+      }
+
+      // Handle PWA Install Prompt
+      (function () {
+        let deferredPrompt = null;
+        const installButtons = document.querySelectorAll('[data-pwa-install]');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          deferredPrompt = e;
+          installButtons.forEach((btn) => {
+            btn.style.display = 'inline-flex';
+          });
+        });
+
+        installButtons.forEach((btn) => {
+          btn.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            if (outcome === 'accepted') {
+              installButtons.forEach((b) => {
+                b.style.display = 'none';
+              });
+            }
+            deferredPrompt = null;
+          });
+        });
+
+        window.addEventListener('appinstalled', () => {
+          installButtons.forEach((b) => {
+            b.style.display = 'none';
+          });
         });
       })();
     </script>

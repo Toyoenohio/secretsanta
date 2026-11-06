@@ -30,6 +30,10 @@ Aplicación web moderna y colaborativa para organizar intercambios de **Amigo Se
 - **Ambiente Navideño Inmersivo**:
   - Guirnalda de luces festivas animadas puramente en CSS.
   - Nieve en tiempo real con simulación de viento, copos flotantes y acumulación física en la base de la pantalla (con posibilidad de desactivarla o barrerla con el cursor).
+- **Progressive Web App (PWA) e Instalable en Móviles**:
+  - Compatible con instalación como app nativa en Android (Chrome, Edge, Samsung Internet) e iOS (Safari "Agregar a Inicio").
+  - Service Worker con caché inteligente de recursos estáticos y pantalla offline personalizada.
+  - Iconos de alta resolución (192x192, 512x512 y maskable) y botón contextual "Instalar".
 
 ---
 

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#cf332b" />
+      <stop offset="100%" stop-color="#8f1813" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe27a" />
+      <stop offset="50%" stop-color="#f6c445" />
+      <stop offset="100%" stop-color="#cf941c" />
+    </linearGradient>
+    <linearGradient id="lidGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2a523a" />
+      <stop offset="100%" stop-color="#183323" />
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1f3d2b" />
+      <stop offset="100%" stop-color="#122419" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Full bleed background for maskable compatibility -->
+  <rect width="512" height="512" fill="url(#bgGrad)" />
+
+  <!-- Subtle holiday sparkles -->
+  <circle cx="100" cy="110" r="4" fill="#ffffff" opacity="0.6" />
+  <circle cx="410" cy="120" r="5" fill="#ffffff" opacity="0.7" />
+  <circle cx="90" cy="380" r="3" fill="#ffffff" opacity="0.5" />
+  <circle cx="420" cy="390" r="4" fill="#ffffff" opacity="0.6" />
+
+  <g filter="url(#shadow)">
+    <!-- Box Body -->
+    <rect x="136" y="246" width="240" height="170" rx="12" fill="url(#boxGrad)" />
+
+    <!-- Vertical Ribbon on Body -->
+    <rect x="236" y="246" width="40" height="170" fill="url(#goldGrad)" />
+
+    <!-- Box Lid -->
+    <rect x="120" y="206" width="272" height="50" rx="8" fill="url(#lidGrad)" />
+
+    <!-- Vertical Ribbon on Lid -->
+    <rect x="236" y="206" width="40" height="50" fill="url(#goldGrad)" />
+
+    <!-- Horizontal Ribbon on Lid -->
+    <rect x="120" y="222" width="272" height="18" fill="url(#goldGrad)" opacity="0.4" />
+
+    <!-- Ribbon Bow Left Loop -->
+    <path d="M 240 206 C 200 140, 140 160, 180 200 C 205 215, 235 208, 246 206 Z" fill="url(#goldGrad)" />
+    <!-- Ribbon Bow Right Loop -->
+    <path d="M 272 206 C 312 140, 372 160, 332 200 C 307 215, 277 208, 266 206 Z" fill="url(#goldGrad)" />
+
+    <!-- Ribbon Knot / Center Star -->
+    <polygon points="256,182 263,198 280,198 266,208 271,224 256,214 241,224 246,208 232,198 249,198" fill="#fff5cc" />
+  </g>
+</svg>
