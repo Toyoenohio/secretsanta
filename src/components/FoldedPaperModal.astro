@@ -699,6 +699,23 @@
 
     const STEP_DELAY = 460;
 
+
+    function escapeHtml(t) {
+      return String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function ojoMarkup() {
+      return `<button type="button" class="ojo-toggle" aria-label="Mostrar el nombre" aria-pressed="false" title="Mostrar / ocultar el nombre">
+          <svg class="ojo-icon ojo-abierto" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" aria-hidden="true"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/></svg>
+          <svg class="ojo-icon ojo-cerrado" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18" aria-hidden="true"><path d="M3 4l18 16"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3.2 3.9M6.6 8.2A16.7 16.7 0 0 0 2 12s3.6 6.5 10 6.5c1.2 0 2.3-.2 3.3-.6"/></svg>
+        </button>`;
+    }
+
+    function nombreOfuscadoMarkup(nombre, claseExtra) {
+      const n = escapeHtml(nombre);
+      return `<span class="nombre-ofuscado ${claseExtra || ''}" data-nombre="${n}"><span class="nombre-mask">**</span>${ojoMarkup()}</span>`;
+    }
+
     function buildInteriorMarkup(nameValue) {
       const displayName = (nameValue || '').trim() || 'Tu amigo secreto';
       const isLong = displayName.length > 13;
@@ -707,7 +724,7 @@
         <div class="fp-sheet-viewport">
           <div class="fp-note-inner">
             <span class="fp-note-label">Te tocó:</span>
-            <span class="fp-note-name ${isLong ? 'is-long' : ''}">${displayName}</span>
+            <span class="fp-note-name ${isLong ? 'is-long' : ''}">${nombreOfuscadoMarkup(displayName)}</span>
             <svg class="fp-note-underline" viewBox="0 0 200 18" fill="none" aria-hidden="true">
               <path
                 d="M6 12 C 52 5, 134 4, 194 11"
@@ -735,7 +752,7 @@
         face.innerHTML = buildInteriorMarkup(currentReceiverName);
       });
       if (revealedNameLabel) {
-        revealedNameLabel.textContent = currentReceiverName;
+        revealedNameLabel.innerHTML = nombreOfuscadoMarkup(currentReceiverName);
       }
     }
 
