@@ -18,8 +18,7 @@ if (user) {
           Registra tus datos.
         </h1>
         <p class="type-body reveal-item reveal-delay-1">
-          Completa tu perfil con tus tallas, gustos y dirección de envío para que tu futuro amigo secreto acierte sin adivinar.
-        </p>
+          Solo lo necesario para entrar: tu nombre, un correo y tu WhatsApp. Los gustos y tallas los completas después, cuando quieras.</p>
 
         {joinCode && (
           <div class="surface-panel space-y-1 reveal-item reveal-delay-2">
@@ -121,89 +120,55 @@ if (user) {
                   <label for="reg-password" class="block type-small mb-1.5">
                     Contraseña * (mínimo 6 caracteres)
                   </label>
+                  <div class="pw-wrap">
                   <input
-                    id="reg-password"
-                    type="password"
-                    name="password"
-                    required
-                    minlength="6"
-                    placeholder="Mínimo 6 caracteres"
+                  id="reg-password"
+                  type="password"
+                  name="password"
+                  required
+                  minlength="6"
+                  placeholder="Mínimo 6 caracteres"
                   />
+                  <button
+                  type="button"
+                  class="pw-toggle"
+                  data-target="reg-password"
+                  aria-pressed="false"
+                  aria-label="Mostrar contraseña"
+                  title="Mostrar contraseña"
+                  >
+                  <svg class="pw-eye" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  <svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 3l18 18"/><path d="M10.6 6.2A10.9 10.9 0 0 1 12 6c6.4 0 10 6 10 6a17.6 17.6 0 0 1-3.4 4.1"/>
+                  <path d="M6.5 7.7A17.4 17.4 0 0 0 2 12s3.6 6 10 6a10.8 10.8 0 0 0 4.3-.9"/>
+                  <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+                  </svg>
+                  </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Sizes and preferences -->
+            <!-- Contacto: solo WhatsApp -->
             <div class="space-y-4">
-              <h2 class="type-lead">Tallas y preferencias para tu amigo secreto</h2>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label for="reg-shirt" class="block type-small mb-1.5">
-                    Talla camisa o blusa
-                  </label>
-                  <input id="reg-shirt" type="text" name="shirt_size" placeholder="Ej. M / L" />
-                </div>
-                <div>
-                  <label for="reg-pants" class="block type-small mb-1.5">
-                    Talla pantalón
-                  </label>
-                  <input id="reg-pants" type="text" name="pants_size" placeholder="Ej. 32 / M" />
-                </div>
-                <div>
-                  <label for="reg-shoes" class="block type-small mb-1.5">
-                    Talla calzado
-                  </label>
-                  <input id="reg-shoes" type="text" name="shoe_size" placeholder="Ej. 40 / 8.5 US" />
-                </div>
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label for="reg-likes" class="block type-small mb-1.5">
-                    Gustos generales, pasatiempos y colores
-                  </label>
-                  <textarea
-                    id="reg-likes"
-                    name="likes"
-                    rows="2"
-                    placeholder="Ej. Café en grano, libros de ciencia ficción, cerámica..."
-                  ></textarea>
-                </div>
-                <div>
-                  <label for="reg-dislikes" class="block type-small mb-1.5">
-                    Cosas que prefieres evitar o alergias
-                  </label>
-                  <textarea
-                    id="reg-dislikes"
-                    name="dislikes"
-                    rows="2"
-                    placeholder="Ej. Alergia al maní, no uso perfumes dulces..."
-                  ></textarea>
-                </div>
-              </div>
-            </div>
-
-            <!-- Contact and shipping -->
-            <div class="space-y-4">
-              <h2 class="type-lead">Contacto y dirección de entrega (opcional)</h2>
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label for="reg-phone" class="block type-small mb-1.5">
-                    Teléfono o WhatsApp
-                  </label>
-                  <input id="reg-phone" type="text" name="phone" placeholder="Ej. +58 412 1234567" />
-                </div>
-                <div>
-                  <label for="reg-address" class="block type-small mb-1.5">
-                    Dirección o agencia de envío preferida
-                  </label>
-                  <input
-                    id="reg-address"
-                    type="text"
-                    name="shipping_address"
-                    placeholder="Ciudad, dirección o sucursal"
-                  />
-                </div>
+              <h2 class="type-lead">WhatsApp de contacto</h2>
+              <div class="max-w-sm">
+                <label for="reg-phone" class="block type-small mb-1.5">
+                  Número de WhatsApp (opcional)
+                </label>
+                <input
+                  id="reg-phone"
+                  type="tel"
+                  name="phone"
+                  inputmode="tel"
+                  autocomplete="tel"
+                  placeholder="Ej. +58 412 1234567"
+                />
+                <p class="type-small" style="color: var(--muted); margin-top: 6px;">
+                  Solo se lo mostramos a tu amigo secreto cuando el sorteo esté cerrado.
+                </p>
               </div>
             </div>
 

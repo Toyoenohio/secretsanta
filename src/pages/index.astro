@@ -1,6 +1,9 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import PixelDiorama from '../components/PixelDiorama.astro';
+import PanelSalas from '../components/PanelSalas.astro';
 import { getCurrentUser, formatAvatarLabel } from '../lib/auth';
+import { puedeCrearSalas } from '../lib/permisos';
 import { sql } from '../lib/db';
 
 const user = await getCurrentUser(Astro.cookies);
@@ -51,14 +54,19 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
     <div class="space-y-28 sm:space-y-36 pt-6 sm:pt-12">
       <!-- HERO: Plain left-aligned statement + live working product fragment (data-ui) -->
       <section class="page-frame">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-start">
           <div class="lg:col-span-6 space-y-6">
+            <div class="insignia-temporada reveal-item">
+              <span class="estrella">★</span>
+              <span class="etiqueta">Edición navidad 2026</span>
+            </div>
+
             <h1 class="type-display reveal-item max-w-[14ch]">
-              Sorteos cerrados sin nadie fuera.
+              Sorteos <span class="subrayado-onda">cerrados</span> sin nadie fuera.
             </h1>
 
             <p class="type-body reveal-item reveal-delay-1">
-              Organiza tu intercambio de amigo secreto con registro de tallas, wishlist con texto y enlaces URL, papelitos matemáticos de ciclo cerrado y chat anónimo en vivo.
+              Organiza tu intercambio de amigo secreto con registro de tallas, wishlist con texto y enlaces URL, papelitos matemáticos de ciclo cerrado y notas anónimas en una bota de Navidad.
             </p>
 
             <div class="flex flex-wrap items-center gap-4 pt-2 reveal-item reveal-delay-2">
@@ -66,7 +74,7 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                 href={joinCodeParam ? `/register?join=${encodeURIComponent(joinCodeParam)}` : '/register'}
                 class="btn-primary"
               >
-                Crear mi cuenta y sala
+                Crear mi cuenta
               </a>
               <a
                 href={joinCodeParam ? `/login?join=${encodeURIComponent(joinCodeParam)}` : '/login'}
@@ -76,7 +84,7 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
               </a>
             </div>
 
-            <div class="pt-4 grid grid-cols-3 gap-6 reveal-item reveal-delay-3 tabular">
+            <div class="pt-4 datos-hero reveal-item reveal-delay-3 tabular">
               <div>
                 <div class="type-lead">100%</div>
                 <div class="type-small" style="color: var(--muted);">Ciclo sin excluidos</div>
@@ -87,12 +95,16 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
               </div>
               <div>
                 <div class="type-lead">En vivo</div>
-                <div class="type-small" style="color: var(--muted);">Chat WebSocket</div>
+                <div class="type-small" style="color: var(--muted);">Notas privadas</div>
               </div>
+            </div>
+
+            <div class="pt-2 reveal-item reveal-delay-3">
+              <PixelDiorama etiqueta="Sorteo cerrado, cero papelitos" />
             </div>
           </div>
 
-          <!-- Working HTML interface fragment (data-ui) -->
+          <!-- Fragmento funcional (data-ui) -->
           <div class="lg:col-span-6 reveal-item reveal-delay-2">
             <div class="surface-panel !p-5 sm:!p-6 space-y-5">
               <div data-ui class="p-5 sm:p-6 space-y-5">
@@ -257,7 +269,6 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                 type="button"
                 data-stage-btn="0"
                 class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
-                style="color: var(--ink); font-weight: 600;"
               >
                 Registro y tallas
               </button>
@@ -265,7 +276,6 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                 type="button"
                 data-stage-btn="1"
                 class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
-                style="color: var(--muted);"
               >
                 Wishlist con enlaces
               </button>
@@ -273,7 +283,6 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                 type="button"
                 data-stage-btn="2"
                 class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
-                style="color: var(--muted);"
               >
                 Papelitos sin excluidos
               </button>
@@ -281,110 +290,11 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                 type="button"
                 data-stage-btn="3"
                 class="stage-label-btn text-left type-small p-2 rounded-[6px] cursor-pointer"
-                style="color: var(--muted);"
               >
-                Chat anónimo en vivo
+                Notas en la bota
               </button>
             </div>
           </div>
-        </div>
-      </section>
-
-      <!-- SECTION 2: Archival Imagery & Winter Footage Showcase -->
-      <section class="page-frame space-y-10">
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-end">
-          <div class="lg:col-span-6 space-y-4">
-            <h2 class="type-h2 reveal-item">
-              El oficio de regalar bien.
-            </h2>
-            <p class="type-body reveal-item reveal-delay-1">
-              Desde los grabados japoneses surimono del siglo XIX hasta las mesas familiares de diciembre, envolver un obsequio exige conocer a quien lo recibe.
-            </p>
-          </div>
-          <div class="lg:col-span-6">
-            <p class="type-body reveal-item reveal-delay-2">
-              Nuestro algoritmo arma un único ciclo hamiltoniano aleatorio donde cada integrante entrega y recibe exactamente un regalo, respetando exclusiones entre parejas o familiares.
-            </p>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-6 items-stretch">
-          <figure class="md:col-span-7 m-0 flex flex-col justify-between gap-2.5 reveal-item">
-            <img
-              src="/assets/gift-wrapping-with-long-white-silk-ribbon.jpg"
-              width="1920"
-              height="1440"
-              alt="Caja de regalo envuelta en papel oscuro con cinta larga de seda blanca"
-              class="w-full h-72 sm:h-80 object-cover rounded-[10px]"
-            />
-            <figcaption class="type-small" style="color: var(--muted);">
-              Envoltura tradicional en papel texturizado y cinta de seda blanca · Fotografía de taller en Suecia.
-            </figcaption>
-          </figure>
-
-          <figure class="md:col-span-5 m-0 flex flex-col justify-between gap-2.5 reveal-item reveal-delay-1">
-            <video
-              autoplay
-              muted
-              loop
-              playsinline
-              preload="metadata"
-              poster="/assets/klo-creek-gurgles-during-an-early-winter-poster.jpg"
-              width="854"
-              height="480"
-              class="w-full h-72 sm:h-80 object-cover rounded-[10px]"
-            >
-              <source src="/assets/klo-creek-gurgles-during-an-early-winter.webm" type="video/webm" />
-            </video>
-            <figcaption class="type-small" style="color: var(--muted);">
-              Invierno en Columbia Británica · La temporada de reuniones y sorteos de fin de año.
-            </figcaption>
-          </figure>
-
-          <figure class="md:col-span-4 m-0 flex flex-col justify-between gap-2.5 reveal-item">
-            <img
-              src="/assets/incense-boxes-with-a-wrapping-cloth.jpg"
-              width="3845"
-              height="2788"
-              loading="lazy"
-              decoding="async"
-              alt="Grabado japonés de 1808 mostrando dos cajas de regalo sobre un paño fukusa"
-              class="w-full h-60 object-cover rounded-[10px]"
-            />
-            <figcaption class="type-small" style="color: var(--muted);">
-              Kubo Shunman, 1808 · Cajas de obsequio sobre paño de envolver.
-            </figcaption>
-          </figure>
-
-          <figure class="md:col-span-4 m-0 flex flex-col justify-between gap-2.5 reveal-item reveal-delay-1">
-            <img
-              src="/assets/souvenirs-covered-with-wrapping-cloth.jpg"
-              width="3835"
-              height="2853"
-              loading="lazy"
-              decoding="async"
-              alt="Grabado surimono de 1816 con obsequios cubiertos por tela decorada"
-              class="w-full h-60 object-cover rounded-[10px]"
-            />
-            <figcaption class="type-small" style="color: var(--muted);">
-              Colección Met Museum, 1816 · Obsequios cubiertos para intercambio.
-            </figcaption>
-          </figure>
-
-          <figure class="md:col-span-4 m-0 flex flex-col justify-between gap-2.5 reveal-item reveal-delay-2">
-            <img
-              src="/assets/gift-wrapping-in-a-jewellery-shop-2.jpg"
-              width="1920"
-              height="1442"
-              loading="lazy"
-              decoding="async"
-              alt="Paquete azul envuelto sobre papel de seda con tarjeta ilustrada"
-              class="w-full h-60 object-cover rounded-[10px]"
-            />
-            <figcaption class="type-small" style="color: var(--muted);">
-              Presentación con tarjeta dedicada lista para el día de entrega.
-            </figcaption>
-          </figure>
         </div>
       </section>
 
@@ -393,9 +303,9 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
           <!-- Sticky live output card -->
           <div class="lg:col-span-6 lg:sticky lg:top-8 field-band rounded-[14px] p-6 sm:p-8 space-y-5 reveal-item">
-            <div class="flex items-center justify-between gap-2">
-              <span class="type-lead">Vista en vivo de tu amigo asignado</span>
-              <span class="status-pill status-pill-success" id="live-output-mode-pill">
+            <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <span class="type-lead" style="min-width: 0;">Vista de tu amigo asignado</span>
+              <span class="status-pill status-pill-success shrink-0" id="live-output-mode-pill">
                 Texto + URL activo
               </span>
             </div>
@@ -416,15 +326,15 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
               </div>
 
               <div id="live-url-row" class="ui-row">
-                <span class="type-small truncate">https://tienda-ejemplo.com/audifonos-anc</span>
-                <span class="type-small font-semibold" style="color: var(--accent);">Referencia URL</span>
+                <span class="type-small" style="overflow-wrap: anywhere;">tienda-ejemplo.com/audifonos</span>
+                <span class="type-small font-semibold shrink-0" style="color: var(--accent);">Referencia URL</span>
               </div>
 
               <div class="p-3.5 rounded-[6px] space-y-2" style="background-color: var(--bg);">
                 <div class="type-small font-semibold">
-                  Canal anónimo WebSocket · Identidad protegida
+                  Bota de Navidad · Identidad protegida
                 </div>
-                <div class="type-body" id="live-chat-preview">
+                <div class="type-body" id="bota-preview">
                   "Hola, ¿los prefieres en color negro mate o plata?"
                 </div>
               </div>
@@ -438,7 +348,7 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                 Todo resuelto antes de comprar.
               </h2>
               <p class="type-body">
-                Prueba los controles de abajo para ver cómo interactúan la wishlist, la reserva secreta entre salas y el chat en tiempo real.
+                Prueba los controles de abajo para ver cómo interactúan la wishlist, la reserva secreta entre salas y el las notas de la bota.
               </p>
             </div>
 
@@ -450,18 +360,18 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
               <p class="type-body">
                 Puedes anotar una idea abierta o pegar el enlace exacto de la tienda para que tu amigo secreto no tenga dudas sobre el modelo.
               </p>
-              <div class="flex flex-wrap gap-3 pt-1">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 max-w-lg">
                 <button
                   type="button"
                   data-wish-mode="url"
-                  class="wish-mode-btn btn-primary !min-h-[42px] !py-2 !px-4 type-small"
+                  class="wish-mode-btn btn-primary !min-h-[42px] !py-2 !px-4 type-small w-full"
                 >
                   Mostrar deseo con URL
                 </button>
                 <button
                   type="button"
                   data-wish-mode="text"
-                  class="wish-mode-btn btn-secondary !min-h-[42px] !py-2 !px-4 type-small"
+                  class="wish-mode-btn btn-secondary !min-h-[42px] !py-2 !px-4 type-small w-full"
                 >
                   Mostrar deseo de solo texto
                 </button>
@@ -490,22 +400,22 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
             <!-- Capability block 3 -->
             <div class="space-y-3 reveal-item">
               <h3 class="type-lead">
-                Chat anónimo bidireccional vía WebSocket
+                Notas privadas, sin tiempo real
               </h3>
               <p class="type-body">
                 Pregunta por tallas o colores al instante. Puedes escribirle a tu asignado como su Amigo Secreto y también responderle a quien sacó tu nombre.
               </p>
               <div class="flex flex-col sm:flex-row gap-3 pt-1">
-                <label for="demo-chat-input" class="sr-only">Mensaje de prueba</label>
+                <label for="demo-nota-input" class="sr-only">Mensaje de prueba</label>
                 <input
-                  id="demo-chat-input"
+                  id="demo-nota-input"
                   type="text"
                   value="Hola, ¿prefieres edición física o digital?"
                   placeholder="Escribe un mensaje anónimo de prueba..."
                 />
                 <button
                   type="button"
-                  id="demo-chat-send"
+                  id="demo-nota-send"
                   class="btn-primary shrink-0 !min-h-[46px]"
                 >
                   Probar envío
@@ -562,7 +472,7 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                 style="background-color: transparent; color: var(--muted);"
               >
                 <span class="faq-dot w-2.5 h-2.5 rounded-full shrink-0" style="background-color: var(--muted);"></span>
-                <span class="type-body">¿El chat en tiempo real revela mi nombre en algún momento?</span>
+                <span class="type-body">¿El las notas de la bota revela mi nombre en algún momento?</span>
               </button>
             </div>
           </div>
@@ -636,251 +546,8 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
       </section>
     </div>
   ) : (
-    <!-- AUTHENTICATED PARTICIPANT DASHBOARD -->
-    <div class="page-frame pt-6 space-y-10">
-      <section class="surface-panel flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div class="flex items-center gap-4">
-          <div class="monogram monogram-lg">
-            {user.avatar.startsWith('http') ? (
-              <img src={user.avatar} alt={user.name} width="56" height="56" />
-            ) : (
-              <span>{formatAvatarLabel(user.avatar, user.name)}</span>
-            )}
-          </div>
-          <div class="space-y-1">
-            <h1 class="type-h2">
-              Hola, {user.nickname || user.name}
-            </h1>
-            <p class="type-body" style="color: var(--muted);">
-              Administra tus salas de intercambio, únete con código o actualiza tu wishlist global.
-            </p>
-          </div>
-        </div>
-
-        <div class="flex flex-wrap items-center gap-3">
-          <a href="/wishlist" class="btn-secondary">
-            Mi wishlist ({wishlistCount})
-          </a>
-          <a href="/profile" class="btn-primary">
-            Mis datos y tallas
-          </a>
-        </div>
-      </section>
-
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <!-- Left column: Join by code + Create room -->
-        <div class="lg:col-span-5 space-y-6">
-          <section class="surface-panel space-y-4">
-            <div class="space-y-1">
-              <h2 class="type-lead">Unirse con código</h2>
-              <p class="type-small" style="color: var(--muted);">
-                Ingresa el código de invitación que te compartieron en tu grupo.
-              </p>
-            </div>
-
-            <div
-              id="join-error"
-              class="hidden p-3.5 rounded-[8px] type-small"
-              style="background-color: var(--danger-bg); color: var(--danger-ink);"
-            ></div>
-
-            <form id="join-room-form" class="space-y-3">
-              <div>
-                <label for="join-code-input" class="block type-small mb-1.5">
-                  Código de la sala
-                </label>
-                <input
-                  type="text"
-                  name="code"
-                  id="join-code-input"
-                  required
-                  value={joinCodeParam}
-                  placeholder="Ej. NAVIDAD-4829"
-                  class="uppercase tabular font-medium"
-                />
-              </div>
-              <button type="submit" id="join-room-btn" class="btn-primary w-full">
-                Entrar a la sala
-              </button>
-            </form>
-          </section>
-
-          <section class="surface-panel space-y-4">
-            <div class="space-y-1">
-              <h2 class="type-lead">Crear nueva sala</h2>
-              <p class="type-small" style="color: var(--muted);">
-                Organiza un nuevo sorteo cerrado de amigo secreto y genera su código.
-              </p>
-            </div>
-
-            <div
-              id="create-error"
-              class="hidden p-3.5 rounded-[8px] type-small"
-              style="background-color: var(--danger-bg); color: var(--danger-ink);"
-            ></div>
-
-            <form id="create-room-form" class="space-y-4">
-              <div>
-                <label for="room-name-input" class="block type-small mb-1.5">
-                  Nombre de la sala o evento *
-                </label>
-                <input
-                  id="room-name-input"
-                  type="text"
-                  name="name"
-                  required
-                  placeholder="Ej. Intercambio Familia 2026"
-                />
-              </div>
-
-              <div>
-                <label for="room-date-input" class="block type-small mb-1.5">
-                  Fecha de entrega (opcional)
-                </label>
-                <input id="room-date-input" type="date" name="exchange_date" />
-              </div>
-
-              <div class="grid grid-cols-3 gap-3">
-                <div>
-                  <label for="budget-min-input" class="block type-small mb-1.5">
-                    Mínimo
-                  </label>
-                  <input id="budget-min-input" type="number" step="0.01" name="budget_min" placeholder="15" />
-                </div>
-                <div>
-                  <label for="budget-max-input" class="block type-small mb-1.5">
-                    Máximo
-                  </label>
-                  <input id="budget-max-input" type="number" step="0.01" name="budget_max" placeholder="50" />
-                </div>
-                <div>
-                  <label for="currency-select" class="block type-small mb-1.5">
-                    Moneda
-                  </label>
-                  <select id="currency-select" name="currency">
-                    <option value="USD">USD ($)</option>
-                    <option value="EUR">EUR (€)</option>
-                    <option value="COP">COP ($)</option>
-                    <option value="MXN">MXN ($)</option>
-                    <option value="CLP">CLP ($)</option>
-                    <option value="ARS">ARS ($)</option>
-                    <option value="PEN">PEN (S/)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label for="room-desc-input" class="block type-small mb-1.5">
-                  Reglas o notas para el grupo
-                </label>
-                <textarea
-                  id="room-desc-input"
-                  name="description"
-                  rows="2"
-                  placeholder="Ej. Entrega en la cena del 24 de diciembre. Completen su wishlist."
-                ></textarea>
-              </div>
-
-              <button type="submit" id="create-room-btn" class="btn-primary w-full">
-                Crear sala y generar código
-              </button>
-            </form>
-          </section>
-        </div>
-
-        <!-- Right column: My rooms list -->
-        <div class="lg:col-span-7 space-y-5">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="type-lead">Mis salas registradas ({myRooms.length})</h2>
-            <div class="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                class="room-filter-tab status-pill status-pill-accent cursor-pointer border-0"
-                data-filter="all"
-              >
-                Todas ({myRooms.length})
-              </button>
-              <button
-                type="button"
-                class="room-filter-tab status-pill cursor-pointer border-0"
-                data-filter="open"
-              >
-                En registro ({openRoomsCount})
-              </button>
-              <button
-                type="button"
-                class="room-filter-tab status-pill cursor-pointer border-0"
-                data-filter="drawn"
-              >
-                Sorteo activo ({drawnRoomsCount})
-              </button>
-            </div>
-          </div>
-
-          {myRooms.length === 0 ? (
-            <div class="surface-panel py-12 text-center space-y-3">
-              <h3 class="type-lead">Aún no participas en ninguna sala</h3>
-              <p class="type-body mx-auto" style="color: var(--muted);">
-                Crea una sala nueva en el panel izquierdo o únete con el código de invitación de tu grupo.
-              </p>
-            </div>
-          ) : (
-            <div class="space-y-4" id="rooms-list">
-              {myRooms.map((room) => {
-                const isOrganizer = room.organizer_id === user.id;
-                const isDrawn = room.status === 'drawn';
-                const hasRevealed = Boolean(room.has_revealed);
-
-                return (
-                  <a
-                    href={`/rooms/${room.code}`}
-                    data-room-status={room.status}
-                    class="room-card-item block surface-card space-y-4"
-                  >
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                      <div class="space-y-1">
-                        <div class="flex flex-wrap items-center gap-2">
-                          <span class="type-lead">{room.name}</span>
-                          {isOrganizer && (
-                            <span class="status-pill status-pill-warning">Organizador</span>
-                          )}
-                        </div>
-                        <div class="type-small tabular" style="color: var(--muted);">
-                          Código #{room.code} · {room.member_count} participantes
-                        </div>
-                      </div>
-
-                      <span class={`status-pill ${isDrawn ? 'status-pill-success' : 'status-pill-accent'}`}>
-                        {isDrawn ? (hasRevealed ? 'Papelito abierto' : 'Elegir papelito') : 'Fase de registro'}
-                      </span>
-                    </div>
-
-                    {room.description && (
-                      <p class="type-small" style="color: var(--muted);">
-                        {room.description}
-                      </p>
-                    )}
-
-                    <div class="flex flex-wrap items-center justify-between gap-2 type-small tabular pt-1">
-                      <span style="color: var(--muted);">
-                        {(room.budget_min != null || room.budget_max != null)
-                          ? `Presupuesto: ${room.budget_min ?? 0} a ${room.budget_max ?? 'libre'} ${room.currency}`
-                          : 'Presupuesto libre'}
-                      </span>
-                      <span class="font-medium">
-                        {isDrawn && hasRevealed && room.receiver_name
-                          ? `Asignado: ${room.receiver_nickname || room.receiver_name}`
-                          : 'Abrir sala'}
-                      </span>
-                    </div>
-                  </a>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+    <!-- PANEL DE INICIO CON SESIÓN -->
+    <PanelSalas user={user} myRooms={myRooms} wishlistCount={wishlistCount} joinCodeParam={joinCodeParam} puedeCrear={puedeCrearSalas(user)} />
   )}
 
   <script is:inline>
@@ -1009,14 +676,14 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
         ],
       },
       {
-        clause: 'Cuarto, consultas la wishlist de tu amigo y chateas en vivo sin revelar quién eres.',
-        desc: 'Marca qué regalo compraste para que no se repita en otras salas y escríbele por WebSocket en tiempo real bajo seudónimo.',
-        uiTitle: 'Canal anónimo WebSocket · Sala activa',
+        clause: 'Cuarto, consultas la wishlist de tu amigo y dejas notas sin revelar quién eres.',
+        desc: 'Marca qué regalo compraste para que no se repita en otras salas y déjale una nota en la bota bajo seudónimo.',
+        uiTitle: 'Bota de Navidad · Sala activa',
         badge: 'Etapa 4 de 4',
         rows: [
           ['Tu identidad frente a tu asignado', 'Oculta bajo seudónimo Amigo Secreto'],
           ['Estado del regalo elegido', 'Reservado en secreto para esta sala'],
-          ['Último mensaje en vivo', 'Recibido hace instantes sin recargar'],
+          ['Última nota en la bota', 'La lee cuando pase por la bota'],
         ],
       },
     ];
@@ -1032,28 +699,43 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
     function setStage(idx) {
       const s = stagesData[idx];
       if (!s || !stageClause) return;
-      if (howRange) howRange.value = String(idx);
+      if (howRange) {
+        howRange.value = String(idx);
+        // relleno de acento hasta el paso actual: el control se ve interactivo
+        howRange.style.setProperty('--stage-progress', `${(idx / (stagesData.length - 1)) * 100}%`);
+      }
       stageClause.textContent = s.clause;
       stageDesc.textContent = s.desc;
       stageUiTitle.textContent = s.uiTitle;
       stageUiBadge.textContent = s.badge;
+
       if (stageUiRows) {
-        stageUiRows.innerHTML = s.rows
-          .map(
-            (r) =>
-              `<div class="ui-row"><span>${r[0]}</span><span class="font-medium">${r[1]}</span></div>`
-          )
-          .join('');
+        stageUiRows.classList.add('is-swapping');
+        setTimeout(() => {
+          stageUiRows.innerHTML = s.rows
+            .map(
+              (r) =>
+                `<div class="ui-row"><span>${r[0]}</span><span class="font-medium">${r[1]}</span></div>`
+            )
+            .join('');
+          stageUiRows.classList.remove('is-swapping');
+        }, 120);
       }
+
+      // estado activo perceptible + semántica para lectores de pantalla
       stageBtns.forEach((b, i) => {
-        b.style.color = i === idx ? 'var(--ink)' : 'var(--muted)';
-        b.style.fontWeight = i === idx ? '600' : '500';
+        const activo = i === idx;
+        b.classList.toggle('is-active', activo);
+        if (activo) b.setAttribute('aria-current', 'step');
+        else b.removeAttribute('aria-current');
       });
     }
 
     howRange?.addEventListener('input', (e) => {
       setStage(Number(e.target.value) || 0);
     });
+    // estado inicial: el paso 1 marcado y la pista con su relleno
+    setStage(0);
     stageBtns.forEach((btn) => {
       btn.addEventListener('click', () => {
         setStage(Number(btn.getAttribute('data-stage-btn')) || 0);
@@ -1096,9 +778,9 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
       }
     });
 
-    const demoChatInput = document.getElementById('demo-chat-input');
-    const demoChatSend = document.getElementById('demo-chat-send');
-    const liveChatPreview = document.getElementById('live-chat-preview');
+    const demoChatInput = document.getElementById('demo-nota-input');
+    const demoChatSend = document.getElementById('demo-nota-send');
+    const liveChatPreview = document.getElementById('bota-preview');
     demoChatSend?.addEventListener('click', () => {
       if (demoChatInput && demoChatInput.value.trim() && liveChatPreview) {
         liveChatPreview.textContent = `"${demoChatInput.value.trim()}"`;
@@ -1120,7 +802,7 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
         body: 'Tu wishlist es global para tu cuenta, pero dentro de cada sala solo la persona que sacó tu papelito puede abrirla. Cuando tu amigo secreto marca un deseo como comprado, tú sigues viéndolo normal para no arruinar la sorpresa.',
       },
       {
-        kicker: 'Mensajería anónima por WebSocket',
+        kicker: 'Notas anónimas en la bota',
         body: 'Cada sala cuenta con dos canales separados: uno donde escribes bajo el seudónimo de Amigo Secreto a la persona que te tocó, y otro donde recibes mensajes de quien te regala a ti sin exponer su nombre ni su correo.',
       },
     ];

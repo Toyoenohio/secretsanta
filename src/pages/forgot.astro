@@ -1,0 +1,100 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getCurrentUser } from '../lib/auth';
+
+const user = await getCurrentUser(Astro.cookies);
+if (user) return Astro.redirect('/');
+---
+
+<Layout title="Recuperar contraseña">
+  <div class="page-frame pt-10 pb-16">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+      <div class="lg:col-span-5 space-y-5">
+        <h1 class="type-display reveal-item">Recuperá tu cuenta.</h1>
+        <p class="type-body reveal-item reveal-delay-1">
+          Escribí el correo con el que te registraste y te mandamos un enlace para elegir una
+          contraseña nueva. El enlace sirve una sola vez y vence en 45 minutos.
+        </p>
+      </div>
+
+      <div class="lg:col-span-7">
+        <div class="surface-panel max-w-xl space-y-6 reveal-item reveal-delay-1">
+          <div class="space-y-1">
+            <h2 class="type-lead">Enlace de recuperación</h2>
+            <p class="type-small" style="color: var(--muted);">
+              Si el correo tiene cuenta, el mensaje llega en menos de un minuto.
+            </p>
+          </div>
+
+          <div
+            id="forgot-error"
+            class="hidden p-3.5 rounded-[8px] type-small"
+            style="background-color: var(--danger-bg); color: var(--danger-ink);"
+          ></div>
+
+          <div
+            id="forgot-ok"
+            class="hidden p-3.5 rounded-[8px] type-small"
+            style="background-color: var(--ok-bg, #10331f); color: var(--ok-ink, #b7e4c7);"
+          ></div>
+
+          <form id="forgot-form" class="space-y-4">
+            <div>
+              <label for="forgot-email" class="block type-small mb-1.5">Correo electrónico</label>
+              <input id="forgot-email" type="email" name="email" required placeholder="tu@correo.com" />
+            </div>
+
+            <button type="submit" id="forgot-btn" class="btn-primary w-full">
+              Enviarme el enlace
+            </button>
+          </form>
+
+          <p class="type-small pt-2" style="color: var(--muted);">
+            <a href="/login" style="color: var(--ink); font-weight: 600; text-decoration: underline;">
+              Volver al ingreso
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    const form = document.getElementById('forgot-form');
+    const errorBox = document.getElementById('forgot-error');
+    const okBox = document.getElementById('forgot-ok');
+    const btn = document.getElementById('forgot-btn');
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!errorBox || !okBox || !btn) return;
+      errorBox.classList.add('hidden');
+      okBox.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = 'Enviando...';
+
+      try {
+        const res = await fetch('/api/auth/forgot', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: new FormData(form).get('email') }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorBox.textContent = data.error || 'No se pudo procesar el pedido.';
+          errorBox.classList.remove('hidden');
+        } else {
+          okBox.textContent = data.mensaje;
+          okBox.classList.remove('hidden');
+          form.reset();
+        }
+      } catch {
+        errorBox.textContent = 'Error de conexión. Probá de nuevo.';
+        errorBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Enviarme el enlace';
+      }
+    });
+  </script>
+</Layout>

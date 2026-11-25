@@ -21,3 +21,10 @@ pnpm-debug.log*
 
 # taste-skill working files
 .taste-skill/
+
+# respaldos y secretos
+.env
+.env.*
+!.env.example
+*.bak
+.env.bak-*

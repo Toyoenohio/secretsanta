@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { sql } from '../../../../lib/db';
 import { getCurrentUser } from '../../../../lib/auth';
-import { getOrCreateWsHub } from '../../../../lib/ws-hub';
+import { enviarPush } from '../../../../lib/push';
 
 export const POST: APIRoute = async ({ params, request, cookies }) => {
   const user = await getCurrentUser(cookies);
@@ -39,8 +39,6 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
     }
 
     let receiverId: string | null = null;
-    let santaUserId: string | null = null;
-    let gifteeUserId: string | null = null;
 
     if (role === 'santa') {
       // User is writing AS Secret Santa TO their assigned giftee
@@ -57,8 +55,6 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
         });
       }
       receiverId = row[0].assigned_receiver_id;
-      santaUserId = user.id;
-      gifteeUserId = receiverId;
     } else {
       // User is writing AS Giftee TO the anonymous Secret Santa who drew them
       const row = await sql`
@@ -74,8 +70,6 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
         });
       }
       receiverId = row[0].user_id;
-      santaUserId = receiverId;
-      gifteeUserId = user.id;
     }
 
     const inserted = await sql`
@@ -86,17 +80,18 @@ export const POST: APIRoute = async ({ params, request, cookies }) => {
 
     const savedMsg = inserted[0];
 
-    // Also broadcast over WebSocket so any connected clients get it immediately
-    if (savedMsg && santaUserId && gifteeUserId) {
+    // Aviso push a quien recibe la nota (no hay chat en tiempo real)
+    if (savedMsg && receiverId) {
       try {
-        const hub = getOrCreateWsHub();
-        hub.broadcastChatMessage({
-          roomId: room.id,
-          santaUserId,
-          gifteeUserId,
-          message: savedMsg as any,
+        await enviarPush(receiverId, {
+          title: 'Tienes una nota en la bota',
+          body: content.length > 90 ? content.slice(0, 87) + '…' : content,
+          url: `/rooms/${code.toLowerCase()}`,
+          tag: `nota-${room.id}`,
         });
-      } catch {}
+      } catch (err) {
+        console.error('Push de nota falló:', err);
+      }
     }
 
     return new Response(JSON.stringify({ ok: true, message: savedMsg }), {

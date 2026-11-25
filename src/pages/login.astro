@@ -44,6 +44,14 @@ if (user) {
             style="background-color: var(--danger-bg); color: var(--danger-ink);"
           ></div>
 
+          <div
+            id="login-ok"
+            class="hidden p-3.5 rounded-[8px] type-small"
+            style="background-color: var(--ok-bg, #10331f); color: var(--ok-ink, #b7e4c7);"
+          >
+            Contraseña actualizada. Entrá con la nueva.
+          </div>
+
           <form id="login-form" class="space-y-4">
             <input type="hidden" id="join-code" value={joinCode} />
 
@@ -64,13 +72,42 @@ if (user) {
               <label for="login-password" class="block type-small mb-1.5">
                 Contraseña
               </label>
-              <input
-                id="login-password"
-                type="password"
-                name="password"
-                required
-                placeholder="Tu contraseña"
-              />
+    <div class="pw-wrap">
+                      <input
+                        id="login-password"
+                        type="password"
+                        name="password"
+                        required
+                        placeholder="Tu contraseña"
+                      />
+                      <button
+                        type="button"
+                        class="pw-toggle"
+                        data-target="login-password"
+                        aria-pressed="false"
+                        aria-label="Mostrar contraseña"
+                        title="Mostrar contraseña"
+                      >
+                        <svg class="pw-eye" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        <svg class="pw-eye-off" viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="M3 3l18 18"/><path d="M10.6 6.2A10.9 10.9 0 0 1 12 6c6.4 0 10 6 10 6a17.6 17.6 0 0 1-3.4 4.1"/>
+                          <path d="M6.5 7.7A17.4 17.4 0 0 0 2 12s3.6 6 10 6a10.8 10.8 0 0 0 4.3-.9"/>
+                          <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>
+                        </svg>
+                      </button>
+                    </div>
+            </div>
+
+            <div class="text-right">
+              <a
+                href="/forgot"
+                class="type-small"
+                style="color: var(--muted); text-decoration: underline;"
+              >
+                ¿Olvidaste tu contraseña?
+              </a>
             </div>
 
             <button type="submit" id="login-btn" class="btn-primary w-full">
@@ -97,6 +134,10 @@ if (user) {
     const errorBox = document.getElementById('login-error');
     const submitBtn = document.getElementById('login-btn');
     const joinCode = document.getElementById('join-code')?.value || '';
+
+    if (new URLSearchParams(window.location.search).get('reset') === '1') {
+      document.getElementById('login-ok')?.classList.remove('hidden');
+    }
 
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -129,7 +170,7 @@ if (user) {
         if (joinCode) {
           window.location.href = `/?join=${encodeURIComponent(joinCode)}`;
         } else {
-          window.location.href = '/';
+          window.location.href = data.redirect || '/';
         }
       } catch {
         errorBox.textContent = 'Error de conexión. Intenta nuevamente.';

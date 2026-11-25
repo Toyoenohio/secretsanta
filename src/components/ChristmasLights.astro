@@ -1,10 +1,144 @@
 ---
-/** Pure-CSS garland of blinking bulbs strung across the top of every page. */
-const bulbs = Array.from({ length: 60 });
+/**
+ * Guirnalda pixel: un cable tenso con bombillas cuadradas que titilan.
+ * Sin imagenes ni JS: puro CSS, hereda los colores de la paleta.
+ * El glow es fuerte a proposito: cada foco tiene nucleo casi blanco, halo difuso
+ * y tres capas de sombra para que se lea como una luz encendida.
+ */
+const TOTAL = 30;
+const colores = ['primary', 'oro', 'secundario', 'celeste'];
+const bombillas = Array.from({ length: TOTAL }, (_, i) => ({
+  color: colores[i % colores.length],
+  duracion: (1.1 + (i % 5) * 0.22).toFixed(2),
+  retraso: ((i % 7) * 0.18).toFixed(2),
+}));
 ---
 
-<div class="xmas-lights" aria-hidden="true">
-  <ul>
-    {bulbs.map(() => <li />)}
-  </ul>
+<div class="guirnalda" aria-hidden="true">
+  <div class="cable"></div>
+  <div class="bombillas">
+    {
+      bombillas.map((b) => (
+        <span class="bombilla" data-color={b.color} style={`--dur:${b.duracion}s;--delay:${b.retraso}s`}>
+          <i class="hilo" />
+          <i class="foco" />
+        </span>
+      ))
+    }
+  </div>
 </div>
+
+<style>
+  .guirnalda {
+    position: relative;
+    width: 100%;
+    height: 36px;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  .cable {
+    position: absolute;
+    inset: 9px 0 auto 0;
+    height: 1.5px;
+    background-color: #2b6955;
+    opacity: 0.55;
+  }
+
+  .bombillas {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 0 6px;
+  }
+
+  .bombilla {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 12px;
+  }
+
+  .hilo {
+    position: relative;
+    z-index: 1;
+    width: 1.5px;
+    height: 6px;
+    background-color: #2b6955;
+    opacity: 0.55;
+  }
+
+  /* el foco: nucleo casi blanco + cuerpo del color + halos */
+  .foco {
+    position: relative;
+    width: 10px;
+    height: 14px;
+    border-radius: 2px;
+    background:
+      linear-gradient(180deg, #ffffff 0%, #fff6dd 26%, var(--c) 62%, color-mix(in srgb, var(--c) 82%, #000) 100%);
+    box-shadow:
+      inset 0 0 2px rgba(255, 255, 255, 0.9),
+      0 0 4px rgba(255, 255, 255, 0.85),
+      0 0 9px var(--c),
+      0 0 18px color-mix(in srgb, var(--c) 78%, transparent);
+    animation: titilar var(--dur) steps(2, end) infinite;
+    animation-delay: var(--delay);
+    opacity: 1;
+  }
+
+  /* halo difuso: lo que hace que alumbre */
+  .foco::before {
+    content: '';
+    position: absolute;
+    inset: -12px -12px -11px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle at 50% 42%,
+      rgba(255, 255, 255, 0.9) 0%,
+      color-mix(in srgb, var(--c) 88%, transparent) 22%,
+      color-mix(in srgb, var(--c) 42%, transparent) 46%,
+      transparent 70%
+    );
+    filter: blur(1.5px);
+    opacity: 1;
+    pointer-events: none;
+    z-index: -1;
+  }
+
+  .bombilla[data-color='primary']    { --c: #d23a4c; }
+  .bombilla[data-color='oro']        { --c: #ffc964; }
+  .bombilla[data-color='secundario'] { --c: #35a077; }
+  .bombilla[data-color='celeste']    { --c: #5cb8ff; }
+
+  @keyframes titilar {
+    0%, 100% {
+      opacity: 1;
+      box-shadow:
+        inset 0 0 2px rgba(255, 255, 255, 1),
+        0 0 5px rgba(255, 255, 255, 0.95),
+        0 0 12px var(--c),
+        0 0 24px color-mix(in srgb, var(--c) 80%, transparent);
+    }
+    50% {
+      opacity: 0.74;
+      box-shadow:
+        inset 0 0 2px rgba(255, 255, 255, 0.6),
+        0 0 3px rgba(255, 255, 255, 0.6),
+        0 0 7px var(--c),
+        0 0 14px color-mix(in srgb, var(--c) 55%, transparent);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .foco { animation: none; opacity: 0.95; }
+  }
+
+  @media (min-width: 768px) {
+    .guirnalda { height: 40px; }
+    .foco { width: 11px; height: 16px; }
+  }
+</style>

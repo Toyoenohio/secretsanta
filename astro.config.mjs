@@ -6,7 +6,7 @@ import { secretSantaWebSocketPlugin } from './src/lib/ws-vite-plugin';
 export default defineConfig({
   output: 'server',
   adapter: node({
-    mode: 'standalone',
+    mode: 'middleware',
   }),
   devToolbar: {
     enabled: false,

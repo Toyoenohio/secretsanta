@@ -1,5 +1,6 @@
 ---
 import Layout from '../../layouts/Layout.astro';
+import BotaNavidad from '../../components/BotaNavidad.astro';
 import { getCurrentUser, formatAvatarLabel } from '../../lib/auth';
 import { sql, type Room, type RoomMember, type WishlistItem, type User } from '../../lib/db';
 import { computeSecretSantaDraw } from '../../lib/draw';
@@ -141,7 +142,7 @@ if (room.status === 'drawn' && myMembership) {
       `) as WishlistItem[];
 
       chatWithGiftee = await sql`
-        SELECT id, sender_id, receiver_id, sender_role, content, created_at
+        SELECT id, sender_id, receiver_id, sender_role, content, created_at, read_at
         FROM anonymous_messages
         WHERE room_id = ${room.id}
           AND (
@@ -157,7 +158,7 @@ if (room.status === 'drawn' && myMembership) {
   const mySantaRow = memberRows.find((m) => m.assigned_receiver_id === user.id);
   if (mySantaRow) {
     chatWithMySanta = await sql`
-      SELECT id, sender_id, receiver_id, sender_role, content, created_at
+      SELECT id, sender_id, receiver_id, sender_role, content, created_at, read_at
       FROM anonymous_messages
       WHERE room_id = ${room.id}
         AND (
@@ -169,6 +170,9 @@ if (room.status === 'drawn' && myMembership) {
     `;
   }
 }
+
+const notasNuevasSanta = chatWithMySanta.filter((m) => m.sender_role === 'santa' && !m.read_at).length;
+const notasNuevasGiftee = chatWithGiftee.filter((m) => m.sender_role === 'giftee' && !m.read_at).length;
 
 const takenCardNumbers = new Set(
   memberRows.filter((m) => m.card_number != null).map((m) => Number(m.card_number))
@@ -191,12 +195,13 @@ const priorityBadge: Record<string, { label: string; badgeClass: string }> = {
   },
 };
 
-const inviteUrl = `${Astro.url.origin}/?join=${room.code}`;
+const inviteUrl = `${siteBaseUrl(Astro.request, Astro.url.origin)}/?join=${room.code}`;
 const whatsappShareText = `Hola, únete a nuestro sorteo de Amigo Secreto "${room.name}" con el código ${room.code} entrando aquí: ${inviteUrl}`;
 const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(whatsappShareText)}`;
 
 const isDrawn = room.status === 'drawn';
 const hasRevealed = Boolean(myMembership?.has_revealed);
+import { siteBaseUrl } from '../../lib/site';
 ---
 
 <Layout title={room.name} user={user} activeTab="rooms">
@@ -306,7 +311,7 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
               </span>
             </div>
             <div class="surface-card !p-3.5 flex items-center justify-between">
-              <span class="type-small font-medium">Paso 3: Wishlist y chat</span>
+              <span class="type-small font-medium">Paso 3: Wishlist y notas</span>
               <span class={`status-pill ${hasRevealed ? 'status-pill-success' : ''}`}>
                 {hasRevealed ? 'Desbloqueado' : 'Al abrir sobre'}
               </span>
@@ -667,7 +672,7 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
                         {assignedReceiver.nickname || assignedReceiver.name} aún no ha agregado deseos a su wishlist
                       </p>
                       <p class="type-small mx-auto" style="color: var(--muted);">
-                        Usa el chat secreto en tiempo real aquí abajo para preguntarle qué le gustaría recibir sin revelar tu identidad.
+                        Déjale una nota en la bota de Navidad, aquí abajo, para preguntarle qué le gustaría recibir sin revelar tu identidad.
                       </p>
                     </div>
                   ) : (
@@ -744,179 +749,14 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
                   )}
                 </section>
 
-                <!-- Real-Time WebSocket Anonymous Chat Section -->
-                <section class="space-y-5" id="live-chat-section">
-                  <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                      <h3 class="type-h2">
-                        Chat secreto en vivo
-                      </h3>
-                      <span id="ws-status-badge" class="status-pill status-pill-warning">
-                        <span id="ws-status-dot" class="w-2 h-2 rounded-full inline-block" style="background-color: var(--warning-ink);"></span>
-                        <span id="ws-status-text">Conectando WebSocket...</span>
-                      </span>
-                    </div>
-                    <span class="type-small" style="color: var(--muted);">
-                      Identidad 100% anónima
-                    </span>
-                  </div>
-
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Chat 1: Write anonymously to my assigned giftee -->
-                    <div
-                      class="surface-panel flex flex-col justify-between space-y-4"
-                      data-giftee-name={assignedReceiver.nickname || assignedReceiver.name}
-                      id="chat-card-giftee"
-                    >
-                      <div class="space-y-1">
-                        <div class="type-lead">
-                          Escríbele a {assignedReceiver.nickname || assignedReceiver.name}
-                        </div>
-                        <div class="type-small" style="color: var(--muted);">
-                          Tus mensajes le llegan bajo el seudónimo "Tu Amigo Secreto"
-                        </div>
-                      </div>
-
-                      <div
-                        id="chat-box-with-my-giftee"
-                        data-ui
-                        class="space-y-2.5 h-64 overflow-y-auto p-4 rounded-[8px]"
-                      >
-                        {chatWithGiftee.length === 0 ? (
-                          <p
-                            id="empty-with-my-giftee"
-                            class="type-small text-center py-8"
-                            style="color: var(--muted);"
-                          >
-                            Aún no le has escrito a {assignedReceiver.nickname || assignedReceiver.name}. Envíale un saludo o pregúntale sobre su regalo.
-                          </p>
-                        ) : (
-                          chatWithGiftee.map((msg) => (
-                            <div
-                              data-msg-id={msg.id}
-                              class="p-3 rounded-[8px] type-small"
-                              style={
-                                msg.sender_role === 'santa'
-                                  ? 'background-color: var(--accent); color: var(--accent-ink); margin-left: 1.5rem;'
-                                  : 'background-color: var(--bg); color: var(--ink); margin-right: 1.5rem;'
-                              }
-                            >
-                              <div class="flex items-center justify-between gap-2 type-small opacity-85 mb-1 tabular">
-                                <span>
-                                  {msg.sender_role === 'santa'
-                                    ? 'Tú (como Amigo Secreto)'
-                                    : assignedReceiver.nickname || assignedReceiver.name}
-                                </span>
-                                <span>
-                                  {new Date(msg.created_at).toLocaleTimeString('es-ES', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              </div>
-                              <p class="type-small break-words" style="color: inherit;">{msg.content}</p>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      <div
-                        id="typing-with-my-giftee"
-                        class="hidden type-small italic px-1"
-                        style="color: var(--accent);"
-                      >
-                        {assignedReceiver.nickname || assignedReceiver.name} está escribiendo...
-                      </div>
-
-                      <form class="anon-msg-form flex gap-2" data-role="santa">
-                        <input
-                          type="text"
-                          name="content"
-                          autocomplete="off"
-                          required
-                          placeholder={`Escribe en secreto a ${assignedReceiver.nickname || assignedReceiver.name}...`}
-                          class="flex-1"
-                        />
-                        <button type="submit" class="btn-primary shrink-0">
-                          Enviar
-                        </button>
-                      </form>
-                    </div>
-
-                    <!-- Chat 2: Messages from the anonymous Secret Santa who drew ME -->
-                    <div class="surface-panel flex flex-col justify-between space-y-4">
-                      <div class="space-y-1">
-                        <div class="type-lead">Chat con quien te regala a ti</div>
-                        <div class="type-small" style="color: var(--muted);">
-                          Tu amigo secreto te escribe aquí sin revelar su identidad
-                        </div>
-                      </div>
-
-                      <div
-                        id="chat-box-with-my-santa"
-                        data-ui
-                        class="space-y-2.5 h-64 overflow-y-auto p-4 rounded-[8px]"
-                      >
-                        {chatWithMySanta.length === 0 ? (
-                          <p
-                            id="empty-with-my-santa"
-                            class="type-small text-center py-8"
-                            style="color: var(--muted);"
-                          >
-                            Tu amigo secreto aún no te ha escrito, o puedes dejarle una pista aquí mismo.
-                          </p>
-                        ) : (
-                          chatWithMySanta.map((msg) => (
-                            <div
-                              data-msg-id={msg.id}
-                              class="p-3 rounded-[8px] type-small"
-                              style={
-                                msg.sender_role === 'giftee'
-                                  ? 'background-color: var(--accent); color: var(--accent-ink); margin-left: 1.5rem;'
-                                  : 'background-color: var(--bg); color: var(--ink); margin-right: 1.5rem;'
-                              }
-                            >
-                              <div class="flex items-center justify-between gap-2 type-small opacity-85 mb-1 tabular">
-                                <span>
-                                  {msg.sender_role === 'giftee' ? 'Tú' : 'Tu Amigo Secreto'}
-                                </span>
-                                <span>
-                                  {new Date(msg.created_at).toLocaleTimeString('es-ES', {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                              </div>
-                              <p class="type-small break-words" style="color: inherit;">{msg.content}</p>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      <div
-                        id="typing-with-my-santa"
-                        class="hidden type-small italic px-1"
-                        style="color: var(--accent);"
-                      >
-                        Tu Amigo Secreto está escribiendo...
-                      </div>
-
-                      <form class="anon-msg-form flex gap-2" data-role="giftee">
-                        <input
-                          type="text"
-                          name="content"
-                          autocomplete="off"
-                          required
-                          placeholder="Escribe una pista o responde a tu Amigo Secreto..."
-                          class="flex-1"
-                        />
-                        <button type="submit" class="btn-secondary shrink-0">
-                          Responder
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                </section>
+                <BotaNavidad
+                  roomCode={room.code}
+                  nombreAsignado={assignedReceiver ? (assignedReceiver.nickname || assignedReceiver.name) : 'tu asignado'}
+                  notasEnviadas={chatWithGiftee}
+                  notasRecibidas={chatWithMySanta}
+                  noLeidasSanta={notasNuevasSanta}
+                  noLeidasGiftee={notasNuevasGiftee}
+                />
               </div>
             ) : null}
           </div>
@@ -979,16 +819,133 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
                 </div>
               )}
             </section>
+
+            <section class="zona-delicada">
+              <h2 class="type-lead">Zona delicada</h2>
+
+              {isOrganizer ? (
+                <>
+                  <p class="type-small" style="color: var(--muted);">
+                    Eliminar la sala borra el sorteo, los papelitos y las notas. No se puede deshacer.
+                  </p>
+                  <button
+                    type="button"
+                    id="delete-room-btn"
+                    class="btn-ghost w-full boton-peligro"
+                    data-code={room.code}
+                    data-name={room.name}
+                  >
+                    Eliminar esta sala
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p class="type-small" style="color: var(--muted);">
+                    {room.status === 'open'
+                      ? 'Puedes salir mientras el sorteo no se haya hecho.'
+                      : 'El sorteo ya se hizo: pídele a quien organiza que reabra las inscripciones.'}
+                  </p>
+                  <button
+                    type="button"
+                    id="leave-room-btn"
+                    class="btn-ghost w-full boton-peligro"
+                    data-code={room.code}
+                    data-name={room.name}
+                    disabled={room.status !== 'open'}
+                  >
+                    Salir de la sala
+                  </button>
+                </>
+              )}
+            </section>
           </aside>
         </div>
       </div>
     )}
   </div>
 
+
+  <style>
+    .zona-delicada {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 18px;
+      border-radius: 14px;
+      background-color: color-mix(in srgb, var(--danger-bg) 55%, var(--surface-raised));
+      border: 1px solid color-mix(in srgb, var(--danger-ink) 22%, transparent);
+    }
+
+    .zona-delicada h2 { color: var(--danger-ink); }
+
+    .boton-peligro {
+      color: var(--danger-ink);
+      border: 1px solid color-mix(in srgb, var(--danger-ink) 35%, transparent);
+      background-color: var(--surface-raised);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 11px;
+    }
+
+    .boton-peligro:hover:not(:disabled) {
+      background-color: var(--danger-bg);
+    }
+
+    .boton-peligro:disabled { opacity: .5; cursor: not-allowed; }
+  </style>
+
   <script is:inline>
     const container = document.getElementById('room-container');
     const roomCode = container?.getAttribute('data-room-code') || '';
     const roomId = container?.getAttribute('data-room-id') || '';
+
+    const borrarSala = document.getElementById('delete-room-btn');
+    borrarSala?.addEventListener('click', async () => {
+      const nombre = borrarSala.getAttribute('data-name') || 'esta sala';
+      const code = borrarSala.getAttribute('data-code') || roomCode;
+      if (!confirm(`¿Eliminar «${nombre}»?\n\nSe borran el sorteo, los papelitos y las notas de todos. No se puede deshacer.`)) return;
+      borrarSala.disabled = true;
+      borrarSala.textContent = 'Eliminando...';
+      try {
+        const res = await fetch(`/api/rooms/${encodeURIComponent(code)}`, { method: 'DELETE' });
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'No se pudo eliminar la sala.');
+          borrarSala.disabled = false;
+          borrarSala.textContent = 'Eliminar esta sala';
+        }
+      } catch {
+        alert('Sin conexión. La sala sigue ahí.');
+        borrarSala.disabled = false;
+        borrarSala.textContent = 'Eliminar esta sala';
+      }
+    });
+
+    const salirSala = document.getElementById('leave-room-btn');
+    salirSala?.addEventListener('click', async () => {
+      const nombre = salirSala.getAttribute('data-name') || 'esta sala';
+      const code = salirSala.getAttribute('data-code') || roomCode;
+      if (!confirm(`¿Salir de «${nombre}»?\n\nDejarás de aparecer en la lista de participantes.`)) return;
+      salirSala.disabled = true;
+      salirSala.textContent = 'Saliendo...';
+      try {
+        const res = await fetch(`/api/rooms/${encodeURIComponent(code)}/leave`, { method: 'POST' });
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          const data = await res.json().catch(() => ({}));
+          alert(data.error || 'No se pudo salir de la sala.');
+          salirSala.disabled = false;
+          salirSala.textContent = 'Salir de la sala';
+        }
+      } catch {
+        alert('Sin conexión. Sigues en la sala.');
+        salirSala.disabled = false;
+        salirSala.textContent = 'Salir de la sala';
+      }
+    });
 
     const copyBtn = document.getElementById('copy-invite-btn');
     const inviteInput = document.getElementById('invite-url-input');
@@ -1178,207 +1135,5 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
       });
     });
 
-    // Real-Time Anonymous Chat via WebSocket
-    const chatBoxGiftee = document.getElementById('chat-box-with-my-giftee');
-    const chatBoxSanta = document.getElementById('chat-box-with-my-santa');
-    const wsBadge = document.getElementById('ws-status-badge');
-    const wsDot = document.getElementById('ws-status-dot');
-    const wsText = document.getElementById('ws-status-text');
-    const gifteeCard = document.getElementById('chat-card-giftee');
-    const gifteeDisplayName = gifteeCard?.getAttribute('data-giftee-name') || 'Tu asignado';
-
-    function scrollToBottom(el) {
-      if (el) {
-        el.scrollTop = el.scrollHeight;
-      }
-    }
-    scrollToBottom(chatBoxGiftee);
-    scrollToBottom(chatBoxSanta);
-
-    function formatTime(isoString) {
-      try {
-        return new Date(isoString).toLocaleTimeString('es-ES', {
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-      } catch {
-        return '';
-      }
-    }
-
-    function appendMessageBubble(channel, msg) {
-      const box = channel === 'with_my_giftee' ? chatBoxGiftee : chatBoxSanta;
-      if (!box) return;
-
-      if (msg.id && box.querySelector(`[data-msg-id="${msg.id}"]`)) {
-        return;
-      }
-
-      const emptyId =
-        channel === 'with_my_giftee' ? 'empty-with-my-giftee' : 'empty-with-my-santa';
-      const emptyEl = document.getElementById(emptyId);
-      if (emptyEl) emptyEl.remove();
-
-      const wrapper = document.createElement('div');
-      if (msg.id) wrapper.setAttribute('data-msg-id', msg.id);
-
-      const isMine =
-        (channel === 'with_my_giftee' && msg.sender_role === 'santa') ||
-        (channel === 'with_my_santa' && msg.sender_role === 'giftee');
-
-      wrapper.className = 'p-3 rounded-[8px] type-small';
-      if (isMine) {
-        wrapper.style.backgroundColor = 'var(--accent)';
-        wrapper.style.color = 'var(--accent-ink)';
-        wrapper.style.marginLeft = '1.5rem';
-      } else {
-        wrapper.style.backgroundColor = 'var(--bg)';
-        wrapper.style.color = 'var(--ink)';
-        wrapper.style.marginRight = '1.5rem';
-      }
-
-      const header = document.createElement('div');
-      header.className = 'flex items-center justify-between gap-2 type-small opacity-85 mb-1 tabular';
-
-      const authorSpan = document.createElement('span');
-      if (channel === 'with_my_giftee') {
-        authorSpan.textContent = isMine
-          ? 'Tú (como Amigo Secreto)'
-          : gifteeDisplayName;
-      } else {
-        authorSpan.textContent = isMine ? 'Tú' : 'Tu Amigo Secreto';
-      }
-
-      const timeSpan = document.createElement('span');
-      timeSpan.textContent = formatTime(msg.created_at);
-
-      header.appendChild(authorSpan);
-      header.appendChild(timeSpan);
-
-      const contentP = document.createElement('p');
-      contentP.className = 'type-small break-words';
-      contentP.style.color = 'inherit';
-      contentP.textContent = msg.content;
-
-      wrapper.appendChild(header);
-      wrapper.appendChild(contentP);
-      box.appendChild(wrapper);
-      scrollToBottom(box);
-    }
-
-    let ws = null;
-    let typingTimers = {};
-
-    function setWsBadgeState(connected) {
-      if (!wsBadge || !wsDot || !wsText) return;
-      if (connected) {
-        wsBadge.className = 'status-pill status-pill-success';
-        wsDot.style.backgroundColor = 'var(--success-ink)';
-        wsText.textContent = 'En vivo (WebSocket)';
-      } else {
-        wsBadge.className = 'status-pill status-pill-warning';
-        wsDot.style.backgroundColor = 'var(--warning-ink)';
-        wsText.textContent = 'Reconectando WebSocket...';
-      }
-    }
-
-    function connectWebSocket() {
-      if (!roomCode || (!chatBoxGiftee && !chatBoxSanta)) return;
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws/chat?room=${encodeURIComponent(roomCode)}`;
-
-      ws = new WebSocket(wsUrl);
-
-      ws.addEventListener('open', () => {
-        setWsBadgeState(true);
-      });
-
-      ws.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'new_message' && data.channel && data.message) {
-            appendMessageBubble(data.channel, data.message);
-            const typingEl = document.getElementById(
-              data.channel === 'with_my_giftee'
-                ? 'typing-with-my-giftee'
-                : 'typing-with-my-santa'
-            );
-            if (typingEl) typingEl.classList.add('hidden');
-          } else if (data.type === 'typing' && data.channel) {
-            const typingEl = document.getElementById(
-              data.channel === 'with_my_giftee'
-                ? 'typing-with-my-giftee'
-                : 'typing-with-my-santa'
-            );
-            if (typingEl) {
-              if (data.isTyping) {
-                typingEl.classList.remove('hidden');
-                clearTimeout(typingTimers[data.channel]);
-                typingTimers[data.channel] = setTimeout(() => {
-                  typingEl.classList.add('hidden');
-                }, 3000);
-              } else {
-                typingEl.classList.add('hidden');
-              }
-            }
-          }
-        } catch (err) {
-          console.error('WS parse error:', err);
-        }
-      });
-
-      ws.addEventListener('close', () => {
-        setWsBadgeState(false);
-        setTimeout(connectWebSocket, 2500);
-      });
-    }
-
-    connectWebSocket();
-
-    document.querySelectorAll('.anon-msg-form').forEach((form) => {
-      const role = form.getAttribute('data-role') || 'santa';
-      const input = form.querySelector('input[name="content"]');
-      let stopTypingTimeout = null;
-
-      input?.addEventListener('input', () => {
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'typing', role, isTyping: true }));
-          clearTimeout(stopTypingTimeout);
-          stopTypingTimeout = setTimeout(() => {
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'typing', role, isTyping: false }));
-            }
-          }, 2000);
-        }
-      });
-
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!input || !input.value.trim()) return;
-
-        const content = input.value.trim();
-        input.value = '';
-
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'chat_message', role, content }));
-          ws.send(JSON.stringify({ type: 'typing', role, isTyping: false }));
-          return;
-        }
-
-        const res = await fetch(`/api/rooms/${roomCode}/messages`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role, content }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const targetChannel = role === 'santa' ? 'with_my_giftee' : 'with_my_santa';
-          if (data.message) {
-            appendMessageBubble(targetChannel, data.message);
-          }
-        }
-      });
-    });
   </script>
 </Layout>

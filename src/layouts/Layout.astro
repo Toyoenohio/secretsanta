@@ -5,6 +5,7 @@ import { formatAvatarLabel } from '../lib/auth';
 import ChristmasLights from '../components/ChristmasLights.astro';
 import Snowfall from '../components/Snowfall.astro';
 import FoldedPaperModal from '../components/FoldedPaperModal.astro';
+import Onboarding from '../components/Onboarding.astro';
 
 interface Props {
   title: string;
@@ -30,18 +31,18 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-    <meta name="theme-color" content="#b3261e" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=2" />
+    <meta name="theme-color" content="#f5faf7" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Secret Santa" />
     <meta name="application-name" content="Secret Santa" />
 
-    <link rel="preconnect" href="https://api.fontshare.com" />
-    <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -166,12 +167,7 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
             <a href="/login" style="color: var(--ink);">
               Entrar
             </a>
-            <a
-              href="/register"
-              role="button"
-              class="inline-flex items-center justify-center px-4 py-2 rounded-[6px] font-medium"
-              style="background-color: var(--accent); color: var(--accent-ink); min-height: 38px;"
-            >
+            <a href="/register" role="button" class="btn-primary boton-cabecera">
               Crear cuenta
             </a>
           </nav>
@@ -195,17 +191,19 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
             <a href="/wishlist" style="color: var(--ink);">Wishlist</a>
             <a href="/profile" style="color: var(--ink);">Perfil</a>
             <a href="/register" style="color: var(--ink);">Registro</a>
+            <button
+              type="button"
+              data-onboarding-open
+              class="type-small"
+              style="color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; font: inherit;"
+            >
+              ¿Cómo funciona?
+            </button>
           </div>
           <div class="md:text-right tabular" style="color: var(--muted);">
             2026 · <a href="/login" style="color: var(--ink);">Acceso privado</a>
           </div>
         </div>
-
-        {isLanding && (
-          <p class="type-small max-w-none" style="color: var(--muted);">
-            Fotografía y archivo: <a href="https://commons.wikimedia.org/wiki/File:Gift_wrapping_with_long_white_silk_ribbon.jpg" style="color: var(--ink); text-decoration: underline;">“Gift wrapping with long white silk ribbon”</a> y <a href="https://commons.wikimedia.org/wiki/File:Gift_wrapping_in_a_jewellery_shop_2.jpg" style="color: var(--ink); text-decoration: underline;">“Gift wrapping in a jewellery shop 2”</a> por W.carter (<a href="https://creativecommons.org/licenses/by/4.0" style="color: var(--ink);">CC BY 4.0</a> / <a href="https://creativecommons.org/licenses/by-sa/4.0" style="color: var(--ink);">CC BY-SA 4.0</a>, Wikimedia Commons); <a href="https://www.metmuseum.org/art/collection/search/54965" style="color: var(--ink); text-decoration: underline;">“Incense Boxes with a Wrapping Cloth”</a> (Kubo Shunman, 1808, CC0, The Met); <a href="https://www.metmuseum.org/art/collection/search/55105" style="color: var(--ink); text-decoration: underline;">“Souvenirs Covered with Wrapping Cloth”</a> (1816, CC0, The Met); video <a href="https://commons.wikimedia.org/wiki/File:KLO_Creek_gurgles_during_an_early_winter_snowfall.webm" style="color: var(--ink); text-decoration: underline;">“KLO Creek gurgles during an early winter snowfall”</a> por Extemporalist (CC0, Wikimedia Commons).
-          </p>
-        )}
       </div>
     </footer>
 
@@ -238,6 +236,8 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
 
     <Snowfall />
     <FoldedPaperModal />
+
+    <Onboarding loggedIn={Boolean(user)} />
 
     <script is:inline>
       const themeBtn = document.getElementById('theme-toggle');
@@ -341,6 +341,35 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
           });
         });
       })();
+
+      // Ojo para ver/ocultar contraseña (login y registro)
+      document.querySelectorAll('.pw-toggle').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const input = document.getElementById(btn.getAttribute('data-target') || '');
+          if (!input) return;
+          const ver = input.type === 'password';
+          input.type = ver ? 'text' : 'password';
+          btn.setAttribute('aria-pressed', ver ? 'true' : 'false');
+          const etiqueta = ver ? 'Ocultar contraseña' : 'Mostrar contraseña';
+          btn.setAttribute('aria-label', etiqueta);
+          btn.setAttribute('title', etiqueta);
+          input.focus({ preventScroll: true });
+        });
+      });
+
+      // Service worker: hace falta para instalar la app y para recibir los avisos push
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((err) => {
+            console.error('No se pudo registrar el service worker:', err);
+          });
+        });
+      }
+
+      // Al abrir la app se limpia el contador de la campana
+      if (navigator.clearAppBadge) {
+        navigator.clearAppBadge().catch(() => {});
+      }
     </script>
   </body>
 </html>

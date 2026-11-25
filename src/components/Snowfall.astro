@@ -30,20 +30,20 @@
     let wind = 0, windTarget = 0, windTimer = 0;
     let raf = 0, last = 0;
 
-    // Pre-rendered flake sprite: white core with a faint cool halo so it reads on light backgrounds too
+    // Sprite de copo pixelado: cuadrado nítido con un borde frío de 1px,
+    // para que se lea sobre fondos claros sin verse borroso.
     const sprite = document.createElement('canvas');
-    sprite.width = sprite.height = 32;
+    sprite.width = sprite.height = 16;
     (function () {
       const s = sprite.getContext('2d');
-      const g = s.createRadialGradient(16, 16, 0, 16, 16, 16);
-      g.addColorStop(0, 'rgba(255,255,255,1)');
-      g.addColorStop(0.45, 'rgba(255,255,255,0.95)');
-      g.addColorStop(0.62, 'rgba(120,138,155,0.35)');
-      g.addColorStop(1, 'rgba(120,138,155,0)');
-      s.fillStyle = g;
-      s.beginPath();
-      s.arc(16, 16, 16, 0, Math.PI * 2);
-      s.fill();
+      s.imageSmoothingEnabled = false;
+      s.fillStyle = 'rgba(150,170,182,0.55)';
+      s.fillRect(5, 5, 8, 8);
+      s.fillStyle = 'rgba(255,255,255,1)';
+      s.fillRect(6, 6, 6, 6);
+      s.fillStyle = 'rgba(255,255,255,0.9)';
+      s.fillRect(7, 5, 4, 1);
+      s.fillRect(7, 12, 4, 1);
     })();
 
     function measureGround() {
@@ -161,19 +161,20 @@
 
     function draw() {
       ctx.clearRect(0, 0, W, H);
+      ctx.imageSmoothingEnabled = false;
 
       // Falling flakes
       for (let n = 0; n < flakes.length; n++) {
         const f = flakes[n];
-        const s = f.r * 4;
+        const s = Math.max(8, Math.round(f.r * 3));
         ctx.globalAlpha = f.alpha;
-        ctx.drawImage(sprite, f.x - s / 2, f.y - s / 2, s, s);
+        ctx.drawImage(sprite, Math.round(f.x - s / 2), Math.round(f.y - s / 2), s, s);
       }
       for (let n = 0; n < puffs.length; n++) {
         const p = puffs[n];
-        const s = p.r * 4;
+        const s = Math.max(8, Math.round(p.r * 3));
         ctx.globalAlpha = Math.max(0, p.life / p.max);
-        ctx.drawImage(sprite, p.x - s / 2, p.y - s / 2, s, s);
+        ctx.drawImage(sprite, Math.round(p.x - s / 2), Math.round(p.y - s / 2), s, s);
       }
       ctx.globalAlpha = 1;
 

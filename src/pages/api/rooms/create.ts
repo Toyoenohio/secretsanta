@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro';
 import { sql } from '../../../lib/db';
 import { generateInviteCode, getCurrentUser } from '../../../lib/auth';
+import { puedeCrearSalas } from '../../../lib/permisos';
 
 export const POST: APIRoute = async ({ request, cookies }) => {
   const user = await getCurrentUser(cookies);
@@ -9,6 +10,14 @@ export const POST: APIRoute = async ({ request, cookies }) => {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+
+  // Crear salas está reservado a la cuenta organizadora: el resto se une con código.
+  if (!puedeCrearSalas(user)) {
+    return new Response(
+      JSON.stringify({ error: 'Las salas las crea el organizador. Pedile el código de invitación.' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 
   try {

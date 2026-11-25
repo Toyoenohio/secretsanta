@@ -1,0 +1,455 @@
+---
+/**
+ * Panel de inicio con sesión iniciada: una sala activa al frente,
+ * el resto detrás de pestañas y un estado vacío claro cuando no hay sorteos.
+ */
+import { formatAvatarLabel } from '../lib/auth';
+
+interface Props {
+  user: any;
+  myRooms: any[];
+  wishlistCount: number;
+  joinCodeParam?: string;
+  puedeCrear?: boolean;
+}
+
+const { user, myRooms = [], wishlistCount = 0, joinCodeParam = '', puedeCrear = false } = Astro.props;
+
+const sorteo = myRooms.find((r) => r.status === 'drawn') || myRooms[0] || null;
+const otras = myRooms.filter((r) => r !== sorteo);
+
+const estado = (r: any) =>
+  r.status === 'drawn'
+    ? r.has_revealed
+      ? { texto: 'Papelito abierto', clase: 'status-pill-success' }
+      : { texto: 'Elegir papelito', clase: 'status-pill-accent' }
+    : { texto: 'Fase de registro', clase: 'status-pill-warning' };
+
+const fecha = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('es-ES', { day: '2-digit', month: 'long' }) : null;
+---
+
+<div class="page-frame pt-6 panel-salas">
+  <!-- cabecera compacta -->
+  <header class="cabecera-salas">
+    <div class="identidad">
+      <div class="monogram">
+        {user.avatar.startsWith('http') ? (
+          <img src={user.avatar} alt={user.name} width="40" height="40" />
+        ) : (
+          <span>{formatAvatarLabel(user.avatar, user.name)}</span>
+        )}
+      </div>
+      <div>
+        <h1 class="type-h2">Hola, {user.nickname || user.name.split(' ')[0]}</h1>
+        <p class="type-small" style="color: var(--muted);">
+          {myRooms.length === 0
+            ? 'Todavía no estás en ningún sorteo'
+            : `${myRooms.length} sorteo${myRooms.length === 1 ? '' : 's'} · ${wishlistCount} deseo${wishlistCount === 1 ? '' : 's'} en tu wishlist`}
+        </p>
+      </div>
+    </div>
+
+  </header>
+
+  <!-- pestañas -->
+  <nav class="pestanas" role="tablist">
+    <button type="button" role="tab" class="pestana is-active" data-ir="sala">
+      {sorteo ? 'Mi sala' : 'Empezar'}
+    </button>
+    <button type="button" role="tab" class="pestana" data-ir="todas" disabled={myRooms.length === 0}>
+      Mis salas{myRooms.length > 0 ? ` (${myRooms.length})` : ''}
+    </button>
+    <button type="button" role="tab" class="pestana" data-ir="nueva">{puedeCrear ? 'Crear o unirme' : 'Unirme con código'}</button>
+  </nav>
+
+  <!-- panel 1: la sala que importa -->
+  <div class="panel-pestana" data-panel="sala">
+    {sorteo ? (
+      <a href={`/rooms/${sorteo.code}`} class="sala-activa">
+        <div class="sala-activa-texto">
+          <span class="etiqueta" style="color: var(--pine);">
+            {sorteo.status === 'drawn' ? 'Sorteo en curso' : 'Inscripción abierta'}
+          </span>
+          <h2 class="type-display sala-nombre">{sorteo.name}</h2>
+          <div class="sala-datos type-small tabular">
+            <span>Código {sorteo.code}</span>
+            <span>{sorteo.member_count} {Number(sorteo.member_count) === 1 ? 'participante' : 'participantes'}</span>
+            {fecha(sorteo.exchange_date) && <span>Entrega {fecha(sorteo.exchange_date)}</span>}
+            <span>
+              {(sorteo.budget_min != null || sorteo.budget_max != null)
+                ? `Presupuesto ${sorteo.budget_min ?? 0}–${sorteo.budget_max ?? 'libre'} ${sorteo.currency}`
+                : 'Presupuesto libre'}
+            </span>
+          </div>
+          {sorteo.description && <p class="type-small" style="color: var(--muted);">{sorteo.description}</p>}
+        </div>
+
+        <div class="sala-activa-lado">
+          <span class={`status-pill ${estado(sorteo).clase}`}>{estado(sorteo).texto}</span>
+          <span class="btn-primary">Entrar a la sala</span>
+        </div>
+      </a>
+    ) : (
+      <div class="vacio">
+        <svg class="vacio-icono" viewBox="0 0 96 96" aria-hidden="true">
+          <rect x="14" y="34" width="68" height="48" rx="6" fill="none" stroke="#a7303f" stroke-width="3" />
+          <path d="M10 34h76v14H10z" fill="none" stroke="#a7303f" stroke-width="3" stroke-linejoin="round" />
+          <path d="M48 34v48" stroke="#a7303f" stroke-width="3" />
+          <path d="M48 34c-6-12-22-14-22-4 0 6 10 6 22 4Zm0 0c6-12 22-14 22-4 0 6-10 6-22 4Z" fill="none" stroke="#2b6955" stroke-width="3" stroke-linejoin="round" />
+        </svg>
+        <h2 class="type-h2">Aún no estás en ningún sorteo</h2>
+        <p class="type-body" style="color: var(--muted); max-width: 46ch;">
+          {puedeCrear
+            ? 'Crea tu propio intercambio y comparte el código, o entra con el código que te pasaron por el grupo.'
+            : 'Entrá con el código que te pasaron por el grupo. La sala la crea quien organiza el intercambio.'}
+        </p>
+        <div class="vacio-acciones">
+          {puedeCrear ? (
+            <>
+              <button type="button" class="btn-primary" data-ir="nueva" data-foco="crear">Crear una sala</button>
+              <button type="button" class="btn-secondary" data-ir="nueva" data-foco="codigo">Tengo un código</button>
+            </>
+          ) : (
+            <button type="button" class="btn-primary" data-ir="nueva" data-foco="codigo">Tengo un código</button>
+          )}
+        </div>
+      </div>
+    )}
+
+    {sorteo && otras.length > 0 && (
+      <div class="otras-salas">
+        <span class="etiqueta" style="color: var(--muted);">Otras salas</span>
+        {otras.slice(0, 3).map((r) => (
+          <a href={`/rooms/${r.code}`} class="otra-fila">
+            <span class="type-small font-semibold">{r.name}</span>
+            <span class={`status-pill ${estado(r).clase}`}>{estado(r).texto}</span>
+          </a>
+        ))}
+        {otras.length > 3 && (
+          <button type="button" class="btn-ghost" data-ir="todas">Ver las {myRooms.length} salas</button>
+        )}
+      </div>
+    )}
+  </div>
+
+  <!-- panel 2: todas las salas -->
+  <div class="panel-pestana oculto" data-panel="todas">
+    {myRooms.length === 0 ? (
+      <p class="type-body" style="color: var(--muted);">Sin salas todavía.</p>
+    ) : (
+      <div class="lista-salas">
+        {myRooms.map((room) => {
+          const isOrganizer = room.organizer_id === user.id;
+          const e = estado(room);
+          return (
+            <div class="fila-sala">
+              <a href={`/rooms/${room.code}`} data-room-status={room.status} class="room-card-item fila-sala-link">
+                <div>
+                  <div class="fila-titulo">
+                    <span class="type-lead">{room.name}</span>
+                    {isOrganizer && <span class="status-pill status-pill-warning">Organizador</span>}
+                  </div>
+                  <div class="type-small tabular" style="color: var(--muted);">
+                    {room.code} · {room.member_count} {Number(room.member_count) === 1 ? 'participante' : 'participantes'} · {room.currency}
+                  </div>
+                </div>
+                <span class={`status-pill ${e.clase}`}>{e.texto}</span>
+              </a>
+
+              {isOrganizer && (
+                <button
+                  type="button"
+                  class="btn-ghost borrar-sala"
+                  data-code={room.code}
+                  data-name={room.name}
+                  title={`Eliminar ${room.name}`}
+                  aria-label={`Eliminar ${room.name}`}
+                >
+                  Eliminar
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+
+  <!-- panel 3: crear o unirse -->
+  <div class="panel-pestana oculto" data-panel="nueva">
+    <div class:list={["crear-grid", !puedeCrear && "solo-codigo"]}>
+      {puedeCrear && (
+      <section class="surface-panel space-y-4" id="bloque-crear">
+        <div class="space-y-1">
+          <h2 class="type-lead">Crear una sala</h2>
+          <p class="type-small" style="color: var(--muted);">Generas un código y lo compartes con tu grupo.</p>
+        </div>
+
+        <div id="create-error" class="hidden p-3.5 rounded-[8px] type-small"
+             style="background-color: var(--danger-bg); color: var(--danger-ink);"></div>
+
+        <form id="create-room-form" class="space-y-4">
+          <div>
+            <label for="room-name-input" class="block type-small mb-1.5">Nombre de la sala o evento *</label>
+            <input id="room-name-input" type="text" name="name" required placeholder="Ej. Intercambio Familia 2026" />
+          </div>
+
+          <div>
+            <label for="room-date-input" class="block type-small mb-1.5">Fecha de entrega (opcional)</label>
+            <input id="room-date-input" type="date" name="exchange_date" />
+          </div>
+
+          <div class="grid grid-cols-3 gap-3">
+            <div>
+              <label for="budget-min-input" class="block type-small mb-1.5">Mínimo</label>
+              <input id="budget-min-input" type="number" step="0.01" name="budget_min" placeholder="15" />
+            </div>
+            <div>
+              <label for="budget-max-input" class="block type-small mb-1.5">Máximo</label>
+              <input id="budget-max-input" type="number" step="0.01" name="budget_max" placeholder="50" />
+            </div>
+            <div>
+              <label for="currency-select" class="block type-small mb-1.5">Moneda</label>
+              <select id="currency-select" name="currency">
+                <option value="USD">USD ($)</option>
+                <option value="EUR">EUR (€)</option>
+                <option value="COP">COP ($)</option>
+                <option value="MXN">MXN ($)</option>
+                <option value="CLP">CLP ($)</option>
+                <option value="ARS">ARS ($)</option>
+                <option value="PEN">PEN (S/)</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label for="room-desc-input" class="block type-small mb-1.5">Reglas o notas para el grupo</label>
+            <textarea id="room-desc-input" name="description" rows="2"
+              placeholder="Ej. Entrega en la cena del 24 de diciembre. Completen su wishlist."></textarea>
+          </div>
+
+          <button type="submit" id="create-room-btn" class="btn-primary w-full">Crear sala y generar código</button>
+        </form>
+      </section>
+      )}
+
+      <section class="surface-panel space-y-4" id="bloque-codigo">
+        <div class="space-y-1">
+          <h2 class="type-lead">Unirme con un código</h2>
+          <p class="type-small" style="color: var(--muted);">Te lo compartieron por WhatsApp o por el grupo.</p>
+        </div>
+
+        <div id="join-error" class="hidden p-3.5 rounded-[8px] type-small"
+             style="background-color: var(--danger-bg); color: var(--danger-ink);"></div>
+
+        <form id="join-room-form" class="space-y-3">
+          <div>
+            <label for="join-code-input" class="block type-small mb-1.5">Código de la sala</label>
+            <input type="text" name="code" id="join-code-input" required value={joinCodeParam}
+              placeholder="Ej. NAVIDAD-4829" class="uppercase tabular font-medium" />
+          </div>
+          <button type="submit" id="join-room-btn" class="btn-primary w-full">Entrar a la sala</button>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+
+<style>
+  .panel-salas { display: flex; flex-direction: column; gap: 22px; }
+
+  .cabecera-salas { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+  .identidad { display: flex; align-items: center; gap: 14px; }
+  .cabecera-acciones { display: flex; gap: 8px; }
+
+  .pestanas {
+    display: flex;
+    gap: 6px;
+    padding: 5px;
+    background-color: var(--surface);
+    border-radius: 9999px;
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .pestanas::-webkit-scrollbar { display: none; }
+
+  .pestana {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    padding: 9px 16px;
+    border-radius: 9999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color .15s ease, color .15s ease;
+  }
+  .pestana:hover:not(:disabled) { color: var(--ink); }
+  .pestana.is-active { background-color: var(--surface-raised); color: var(--ink); box-shadow: var(--sombra-1); }
+  .pestana:disabled { opacity: .45; cursor: default; }
+
+  .panel-pestana.oculto { display: none; }
+
+  /* ---- sala activa ---- */
+  .sala-activa {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 26px;
+    border-radius: 18px;
+    background-color: var(--surface-raised);
+    border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+    box-shadow: var(--sombra-1);
+    text-decoration: none;
+    color: inherit;
+    transition: box-shadow .18s ease, transform .18s ease;
+  }
+  .sala-activa:hover { box-shadow: var(--sombra-2); transform: translateY(-2px); }
+
+  .sala-activa-texto { display: flex; flex-direction: column; gap: 8px; min-width: 0; flex: 1 1 320px; }
+  .sala-nombre { font-size: clamp(1.45rem, 2.6vw, 1.95rem); text-transform: none; letter-spacing: -.02em; }
+  .sala-datos { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); }
+  .sala-datos span { position: relative; }
+  .sala-activa-lado { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+
+  /* ---- estado vacío ---- */
+  .vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+    padding: 44px 24px;
+    border-radius: 18px;
+    background-color: var(--ui-paper);
+    border: 1px dashed color-mix(in srgb, var(--ink) 18%, transparent);
+  }
+  .vacio-icono { width: 84px; height: 84px; }
+  .vacio-acciones { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 4px; }
+
+  /* ---- otras salas ---- */
+  .otras-salas { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+  .otra-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    background-color: var(--surface-raised);
+    border: 1px solid color-mix(in srgb, var(--ink) 7%, transparent);
+    text-decoration: none;
+    color: inherit;
+  }
+  .otra-fila:hover { background-color: var(--surface); }
+
+  /* ---- lista de salas ---- */
+  .lista-salas { display: flex; flex-direction: column; gap: 10px; }
+  .fila-sala {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px 6px 4px;
+    border-radius: 14px;
+    background-color: var(--surface-raised);
+    border: 1px solid color-mix(in srgb, var(--ink) 7%, transparent);
+    box-shadow: var(--sombra-1);
+  }
+  .fila-sala:hover { box-shadow: var(--sombra-2); }
+
+  .fila-sala-link {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    text-decoration: none;
+    color: inherit;
+    min-width: 0;
+  }
+
+  .borrar-sala {
+    flex: 0 0 auto;
+    color: var(--danger-ink);
+    font-size: 11px;
+  }
+  .borrar-sala:hover { background-color: color-mix(in srgb, var(--danger-bg) 70%, transparent); }
+  .fila-titulo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  /* ---- crear / unirse ---- */
+  .crear-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 18px; align-items: start; }
+  .crear-grid.solo-codigo { grid-template-columns: minmax(0, 520px); }
+
+  @media (max-width: 860px) {
+    .crear-grid { grid-template-columns: 1fr; }
+    .sala-activa { padding: 20px; }
+    .sala-activa-lado { width: 100%; justify-content: space-between; }
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    const pestanas = document.querySelectorAll('.pestana');
+    const paneles = document.querySelectorAll('.panel-pestana');
+
+    function ir(nombre, foco) {
+      pestanas.forEach(function (p) { p.classList.toggle('is-active', p.getAttribute('data-ir') === nombre); });
+      paneles.forEach(function (p) { p.classList.toggle('oculto', p.getAttribute('data-panel') !== nombre); });
+
+      if (foco) {
+        const destino = foco === 'codigo' ? document.getElementById('join-code-input') : document.getElementById('room-name-input');
+        if (destino) setTimeout(function () { destino.focus(); destino.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 120);
+      }
+    }
+
+    document.querySelectorAll('[data-ir]').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        const nombre = el.getAttribute('data-ir');
+        if (!nombre) return;
+        if (el.tagName === 'A' || el.tagName === 'BUTTON') e.preventDefault();
+        ir(nombre, el.getAttribute('data-foco'));
+      });
+    });
+
+    // eliminar una sala desde la lista (solo aparece al organizador)
+    document.querySelectorAll('.borrar-sala').forEach(function (boton) {
+      boton.addEventListener('click', async function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const nombre = boton.getAttribute('data-name') || 'esta sala';
+        const code = boton.getAttribute('data-code');
+        if (!confirm('¿Eliminar «' + nombre + '»?\n\nSe borran el sorteo, los papelitos y las notas de todos. No se puede deshacer.')) return;
+        boton.disabled = true;
+        boton.textContent = 'Eliminando…';
+        try {
+          const res = await fetch('/api/rooms/' + encodeURIComponent(code), { method: 'DELETE' });
+          if (res.ok) {
+            location.reload();
+          } else {
+            const data = await res.json().catch(function () { return {}; });
+            alert(data.error || 'No se pudo eliminar la sala.');
+            boton.disabled = false;
+            boton.textContent = 'Eliminar';
+          }
+        } catch {
+          alert('Sin conexión.');
+          boton.disabled = false;
+          boton.textContent = 'Eliminar';
+        }
+      });
+    });
+
+    // si llega con ?join=, abre directamente la pestaña de código
+    if (new URLSearchParams(location.search).get('join')) ir('nueva', 'codigo');
+  })();
+</script>

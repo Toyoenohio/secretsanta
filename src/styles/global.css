@@ -345,11 +345,23 @@ input[type="range"].stage-slider {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 8px;
-  background: var(--surface);
-  border-radius: 0;
+  /* altura mayor: una pista de 8px casi no se ve (contraste 1.1:1 contra el fondo) */
+  height: 12px;
+  /* el relleno de acento marca el avance: sin esto el usuario no sabe que es interactivo */
+  background: linear-gradient(
+    to right,
+    var(--accent) 0 var(--stage-progress, 0%),
+    var(--surface) var(--stage-progress, 0%) 100%
+  );
+  border-radius: var(--radius-pill);
   outline: none;
   cursor: pointer;
+  transition: background 180ms var(--ease-out-strong);
+}
+
+input[type="range"].stage-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
 }
 
 input[type="range"].stage-slider::-webkit-slider-thumb {
@@ -358,7 +370,7 @@ input[type="range"].stage-slider::-webkit-slider-thumb {
   width: 32px;
   height: 32px;
   background: var(--accent);
-  border: none;
+  border: 3px solid var(--bg);
   border-radius: 2px;
   cursor: grab;
   transition: transform 150ms var(--ease-out-strong), background-color 150ms var(--ease-out-strong);
@@ -591,4 +603,626 @@ input[type="range"].stage-slider::-moz-range-thumb {
   .xmas-lights li {
     animation: none;
   }
+}
+
+
+/* ---------- Pasos del sorteo: estado activo perceptible ----------
+   Antes el único cambio era color + font-weight (500→600): invisible.
+   Ahora el paso activo tiene barra de acento, fondo y color de tinta. */
+.stage-label-btn {
+  position: relative;
+  border-left: 3px solid transparent;
+  background: transparent;
+  transition:
+    background-color 160ms var(--ease-out-strong),
+    border-color 160ms var(--ease-out-strong),
+    color 160ms var(--ease-out-strong);
+}
+
+.stage-label-btn:not(.is-active) {
+  color: var(--muted);
+}
+
+.stage-label-btn:hover {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.stage-label-btn.is-active {
+  border-left-color: var(--accent);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* el panel cambia de contenido: sin transición parecía que no pasaba nada */
+#stage-ui-rows {
+  transition: opacity 160ms var(--ease-out-strong);
+}
+
+#stage-ui-rows.is-swapping {
+  opacity: 0.35;
+}
+
+
+/* ==========================================================================
+   Pasada de pulido de UI (auditoría 2026-11-07)
+   Problemas medidos y corregidos acá, sin tocar la estructura:
+   1. Enlaces del nav de 20px de alto → área de toque mínima de 40px.
+   2. Párrafos largos de 75+ caracteres por línea → medida de lectura.
+   3. Radios de borde inconsistentes (6/8/10/14) → escala de tres pasos.
+   ========================================================================== */
+
+/* 1. Área de toque: los enlaces del nav medían 20px de alto, muy por debajo
+   de los 44px recomendados. Se agranda el área sin cambiar el tamaño de letra. */
+header nav a,
+header nav button.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding-block: 8px;
+  padding-inline: 2px;
+}
+
+/* 2. Medida de lectura: en columnas anchas el texto llegaba a 75-80 caracteres.
+   Se limita a ~68ch, que es el rango cómodo. */
+.type-body,
+.type-lead {
+  max-width: 68ch;
+}
+
+/* En columnas angostas el máximo no debe estorbar */
+@media (max-width: 768px) {
+  .type-body,
+  .type-lead {
+    max-width: none;
+  }
+}
+
+/* 3. Escala de radios: 6px para controles, 12px para superficies, pill para badges.
+   Se normalizan los valores sueltos de 8 y 10 que convivían con 6 y 14. */
+[class*="rounded-[8px]"],
+[class*="rounded-[10px]"] {
+  border-radius: var(--radius-sm) !important;
+}
+
+[class*="rounded-[14px]"] {
+  border-radius: 12px !important;
+}
+
+/* Los bloques de demo usaban rounded-[6px] con fondo distinto: se mantiene. */
+/* Los valores de .ui-row son cadenas largas ("Camisa M · Pantalón 32 · Calzado 41").
+   Con nowrap desbordaban 200px en móvil; se permite el salto en dos líneas. */
+.ui-row {
+  gap: 12px;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+
+/* A 320px el header no entraba: logo (68px) + nav (267px) = 371 en un viewport
+   de 320. Se permite que el nav baje a una segunda fila en pantallas muy angostas,
+   así ningún enlace queda fuera de alcance. */
+@media (max-width: 430px) {
+  header > .page-frame,
+  header .page-frame {
+    height: auto;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    padding-block: 10px;
+  }
+
+  header nav {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+    /* los enlaces no se parten, pero la fila sí puede pasar a otra línea */
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  header nav a,
+  header nav button,
+  header nav .btn-primary {
+    min-height: 36px;
+    padding-block: 4px;
+    white-space: nowrap;
+  }
+}
+
+
+/* 4. Área de toque real en el deslizador: la pista mide 12px de alto, así que el
+   blanco para arrastrar era diminuto. Se agrega relleno vertical que no se pinta
+   (background-clip: content-box) y deja el control con 40px de alto efectivo. */
+input[type="range"].stage-slider {
+  box-sizing: content-box;
+  padding-block: 14px;
+  background-clip: content-box;
+}
+
+/* 5. Enlaces sueltos dentro de filas flex (Salas, Wishlist, Perfil, Registro)
+   medían 20px de alto. Los créditos del pie van dentro de <p> y no se tocan. */
+.flex > a[href],
+.flex > button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+}
+
+
+/* El nombre de la marca se partía en tres líneas cuando el nav competía por el ancho. */
+header a[href="/"] > span,
+header .brand span {
+  white-space: nowrap;
+}
+
+
+/* ==========================================================================
+   SKIN «8-BIT FESTIVE» — Material 3 + lenguaje pixel
+   Paleta y escala tipográfica tomadas de la referencia del cliente.
+   Se aplica por encima de los estilos base: mismas clases, nueva piel.
+   ========================================================================== */
+
+:root {
+  /* superficie */
+  --bg: #f5faf7;
+  --surface: #eaefec;
+  --surface-raised: #ffffff;
+  --ui-paper: #f0f5f2;
+
+  /* tinta */
+  --ink: #171d1b;
+  --muted: #574142;
+
+  /* primario (rojo regalo) */
+  --accent: #a7303f;
+  --accent-hover: #8a192c;
+  --accent-ink: #ffffff;
+
+  /* secundario (pino) */
+  --pine: #2b6955;
+  --pine-soft: #b0f0d6;
+  --pine-deep: #0b513e;
+
+  /* terciario (oro) */
+  --gold: #f5bd62;
+  --gold-deep: #7c5400;
+
+  /* estados */
+  --danger-bg: #ffdad6;
+  --danger-ink: #93000a;
+  --success-bg: #b0f0d6;
+  --success-ink: #0b513e;
+  --warning-bg: #ffddaf;
+  --warning-ink: #614000;
+
+  /* banda oscura */
+  --field-bg: #205d49;
+  --field-surface: #1a4e3c;
+  --field-ink: #ffffff;
+  --field-muted: #b0f0d6;
+
+  /* guirnalda */
+  --bulb-red: #a7303f;
+  --bulb-gold: #f5bd62;
+  --bulb-green: #2b6955;
+  --bulb-blue: #4aa8f0;
+  --bulb-wire: #2b6955;
+
+  /* tipografía */
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+
+  /* radios */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* sombras suaves MD3 */
+  --sombra-1: 0 1px 2px rgba(23, 29, 27, .07), 0 1px 3px rgba(23, 29, 27, .05);
+  --sombra-2: 0 2px 6px rgba(23, 29, 27, .08), 0 6px 16px -6px rgba(23, 29, 27, .12);
+}
+
+html.dark {
+  --bg: #0f1513;
+  --surface: #17201d;
+  --surface-raised: #1d2724;
+  --ui-paper: #131b18;
+  --ink: #eaf4ef;
+  --muted: #b9c9c2;
+  --accent: #ffb3b5;
+  --accent-hover: #ffdada;
+  --accent-ink: #40000c;
+  --pine: #95d3bb;
+  --pine-soft: #0b513e;
+  --pine-deep: #b0f0d6;
+  --gold: #f5bd62;
+  --gold-deep: #ffddaf;
+  --danger-bg: #42201b;
+  --danger-ink: #ffdad6;
+  --success-bg: #0b513e;
+  --success-ink: #b0f0d6;
+  --warning-bg: #3b3116;
+  --warning-ink: #ffddaf;
+  --field-bg: #10382c;
+  --field-surface: #0b2b22;
+  --field-ink: #eaf4ef;
+  --field-muted: #95d3bb;
+  --bulb-wire: #0a110d;
+  --sombra-1: 0 1px 2px rgba(0, 0, 0, .5);
+  --sombra-2: 0 4px 18px -6px rgba(0, 0, 0, .6);
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- tipografía ---------- */
+.type-display,
+.type-h2,
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.type-display { text-transform: uppercase; line-height: 1.1; }
+
+.type-lead { font-family: var(--font-display); font-weight: 600; letter-spacing: -.01em; }
+
+/* etiquetas al estilo Material: mayúsculas, tracking amplio */
+.type-small {
+  font-weight: 500;
+}
+
+.etiqueta {
+  font-family: var(--font-display);
+  font-size: 10px;
+  line-height: 12px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* ---------- superficies ---------- */
+.surface-panel {
+  background-color: var(--surface-raised);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--ink) 7%, transparent);
+  box-shadow: var(--sombra-1);
+}
+
+.surface-card {
+  background-color: var(--surface-raised);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--ink) 7%, transparent);
+  box-shadow: var(--sombra-1);
+}
+
+a.surface-card:hover,
+.surface-card:hover {
+  box-shadow: var(--sombra-2);
+  transform: translateY(-2px);
+  transition: transform .18s var(--ease-out-strong), box-shadow .18s var(--ease-out-strong);
+}
+
+/* tarjeta de contención suave (fondo verdoso, sin borde) */
+.tarjeta-suave {
+  background-color: var(--ui-paper);
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent);
+  box-shadow: none;
+}
+
+/* ---------- botones táctiles retro ---------- */
+.btn-primary,
+.btn-secondary,
+.btn-ghost {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  border-radius: var(--radius-md);
+  transition: transform .12s ease, box-shadow .12s ease, background-color .15s ease;
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: var(--accent-ink);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--accent) 62%, #000), var(--sombra-1);
+}
+
+.btn-primary:hover { background-color: var(--accent-hover); }
+
+.btn-primary:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 62%, #000), var(--sombra-1);
+}
+
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--ink) 12%, transparent), var(--sombra-1);
+}
+
+.btn-secondary:hover { background-color: color-mix(in srgb, var(--surface) 70%, var(--ink) 6%); }
+
+.btn-secondary:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--ink) 12%, transparent);
+}
+
+.btn-ghost {
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  letter-spacing: .05em;
+}
+
+.btn-ghost:hover { background-color: color-mix(in srgb, var(--ink) 6%, transparent); }
+
+/* ---------- pastillas de estado ---------- */
+.status-pill {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  border: 0;
+}
+
+.status-pill-accent  { background-color: #ffdada; color: #8a192c; }
+.status-pill-success { background-color: var(--success-bg); color: var(--success-ink); }
+.status-pill-warning { background-color: var(--warning-bg); color: var(--warning-ink); }
+.status-pill-danger  { background-color: var(--danger-bg); color: var(--danger-ink); }
+
+html.dark .status-pill-accent { background-color: #5c1b25; color: #ffdada; }
+
+/* ---------- monogramas ---------- */
+.monogram {
+  font-family: var(--font-display);
+  font-weight: 700;
+  border-radius: 10px;
+  background-color: var(--pine-soft);
+  color: var(--pine-deep);
+}
+
+/* ---------- campos ---------- */
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='url'],
+input[type='search'],
+select,
+textarea {
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--surface-variant, #dee4e1);
+  background-color: var(--surface-raised);
+  color: var(--ink);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ---------- utilidades pixel ---------- */
+.borde-escamas {
+  height: 8px;
+  background-color: var(--surface-raised);
+  -webkit-mask-image: radial-gradient(circle at 8px 0, transparent 7px, #000 8px);
+  mask-image: radial-gradient(circle at 8px 0, transparent 7px, #000 8px);
+  -webkit-mask-size: 16px 8px;
+  mask-size: 16px 8px;
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+}
+
+.sombra-pixel {
+  image-rendering: pixelated;
+  filter: drop-shadow(0 2px 0 rgba(23, 29, 27, .18));
+}
+
+/* la banda oscura del CTA ahora es verde pino con textura de puntos */
+.field-band {
+  background-color: var(--field-bg);
+  background-image: radial-gradient(rgba(255, 255, 255, .07) 1px, transparent 1px);
+  background-size: 8px 8px;
+  border-radius: var(--radius-lg);
+}
+
+
+/* ---------- insignia de temporada ---------- */
+.insignia-temporada {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background-color: var(--pine-soft);
+  color: var(--pine-deep);
+  box-shadow: var(--sombra-1);
+  width: fit-content;
+}
+
+.insignia-temporada .estrella { font-size: 11px; line-height: 1; color: var(--gold-deep); }
+.insignia-temporada .etiqueta { font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase; }
+
+html.dark .insignia-temporada { background-color: #0b513e; color: #b0f0d6; }
+html.dark .insignia-temporada .estrella { color: #f5bd62; }
+
+/* palabra destacada del titular */
+.subrayado-onda {
+  color: var(--accent);
+  text-decoration: underline wavy;
+  text-decoration-thickness: 2.5px;
+  text-underline-offset: 4px;
+  text-decoration-skip-ink: none;
+}
+
+
+/* ---------- cabecera ---------- */
+.boton-cabecera {
+  min-height: 36px;
+  padding: 8px 14px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+
+/* en móvil la cabecera se queda con lo esencial: entrar y crear */
+@media (max-width: 639px) {
+  header nav a[href^='/#'] { display: none !important; }
+}
+
+/* ---------- fila de datos del hero ---------- */
+.datos-hero {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+@media (max-width: 640px) {
+  .datos-hero {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .datos-hero > div {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  }
+  .datos-hero > div:last-child { border-bottom: 0; padding-bottom: 0; }
+  .datos-hero .type-small { margin-left: auto; text-align: right; }
+}
+
+
+/* La cabecera cabe en una sola línea desde que el nav tiene dos enlaces:
+   se neutraliza la regla histórica que lo mandaba a una segunda fila a ≤430px. */
+@media (max-width: 639px) {
+  header .page-frame {
+    height: 64px !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+  }
+  header nav {
+    width: auto !important;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+    gap: 12px !important;
+    flex-wrap: nowrap;
+  }
+  header nav a[href='/login'] { font-size: 13px; }
+  .boton-cabecera { min-height: 34px; padding: 7px 12px; font-size: 10px; }
+}
+
+
+/* Cabecera con sesión iniciada en móvil: solo lo esencial.
+   Tema y nieve son extras y empujaban el menú fuera de pantalla. */
+@media (max-width: 639px) {
+  header #theme-toggle,
+  header .snow-toggle,
+  header [data-pwa-install] {
+    display: none !important;
+  }
+  header nav > form button,
+  header nav > button.btn-ghost {
+    font-size: 12px;
+    padding: 8px 6px;
+  }
+}
+
+/* ---------- ojo para ver/ocultar contraseña ---------- */
+.pw-wrap{position:relative;display:block}
+.pw-wrap input:not([type="checkbox"]):not([type="radio"]):not([type="range"]){
+  padding-right:46px !important;
+}
+.pw-toggle{
+  position:absolute;top:50%;right:6px;transform:translateY(-50%);
+  width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;
+  border:0;background:transparent;color:var(--muted);cursor:pointer;border-radius:8px;
+  padding:0;line-height:0;z-index:2;
+}
+.pw-toggle:hover{color:var(--ink);background:rgba(127,127,127,.14)}
+.pw-toggle:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.pw-toggle svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.pw-toggle .pw-eye-off{display:none}
+.pw-toggle[aria-pressed="true"] .pw-eye{display:none}
+.pw-toggle[aria-pressed="true"] .pw-eye-off{display:block}
+
+/* ---------- LUZ: hover luminoso en botones, pills y bullets ----------
+   El glow usa filter: drop-shadow en capas para no pisar las sombras 3D
+   (box-shadow) que ya tienen los botones. Cada familia define --glow. */
+
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.status-pill,
+.stage-label-btn,
+[role='tab'],
+.chip,
+.tag,
+button:not(:disabled) {
+  --glow: var(--accent);
+  transition: transform .14s ease, box-shadow .16s ease, background-color .16s ease,
+              color .16s ease, border-color .16s ease, filter .22s ease;
+}
+
+.btn-secondary, .btn-ghost, [role='tab'], .chip, .tag { --glow: var(--pine-deep); }
+.status-pill-accent  { --glow: #d23a4c; }
+.status-pill-success { --glow: #2f9e63; }
+.status-pill-warning { --glow: #d99a2b; }
+.status-pill-danger  { --glow: #c8402f; }
+
+/* el encendido: tres halos + un pelin de brillo */
+.btn-primary:hover, .btn-primary:focus-visible,
+.btn-secondary:hover, .btn-secondary:focus-visible,
+.btn-ghost:hover, .btn-ghost:focus-visible,
+.status-pill:hover,
+.stage-label-btn:hover,
+[role='tab']:hover,
+.chip:hover, .tag:hover,
+button:not(:disabled):not([aria-label]):hover,
+button:not(:disabled):not([aria-label]):focus-visible {
+  filter:
+    drop-shadow(0 0 3px color-mix(in srgb, var(--glow) 92%, #fff))
+    drop-shadow(0 0 10px color-mix(in srgb, var(--glow) 78%, transparent))
+    drop-shadow(0 0 24px color-mix(in srgb, var(--glow) 48%, transparent))
+    brightness(1.06);
+}
+
+/* las pastillas y los tabs además se encienden por dentro */
+.status-pill:hover,
+.stage-label-btn:hover,
+[role='tab']:hover {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--glow) 42%, transparent),
+    0 0 14px color-mix(in srgb, var(--glow) 52%, transparent);
+}
+
+/* la fila activa del tab no se apaga con el hover de las demás */
+.stage-label-btn.is-active:hover {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--glow) 55%, transparent),
+    0 0 18px color-mix(in srgb, var(--glow) 62%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary, .btn-secondary, .btn-ghost, .status-pill, .stage-label-btn,
+  [role='tab'], .chip, .tag, button { transition: none; }
 }

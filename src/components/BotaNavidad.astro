@@ -1,0 +1,342 @@
+---
+/**
+ * La bota de Navidad — mensajes sin tiempo real.
+ * No es un chat: son notas que se dejan en una bota y se leen cuando el otro pasa.
+ */
+interface Props {
+  roomCode: string;
+  nombreAsignado: string;
+  notasEnviadas: any[];
+  notasRecibidas: any[];
+  noLeidasSanta: number;
+  noLeidasGiftee: number;
+}
+
+const { roomCode, nombreAsignado, notasEnviadas = [], notasRecibidas = [], noLeidasSanta = 0, noLeidasGiftee = 0 } = Astro.props;
+
+const fecha = (iso: string) =>
+  new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+---
+
+<section class="space-y-5" id="bota-section">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="space-y-1">
+      <h3 class="type-h2">La bota de Navidad</h3>
+      <p class="type-small" style="color: var(--muted); max-width: 56ch;">
+        Aquí no hay chat en vivo. Dejas una nota dentro de la bota y la otra persona la lee cuando pasa por ella.
+      </p>
+    </div>
+    <button type="button" id="bota-avisos" class="btn-secondary" data-suscrito="no">
+      Avisarme de notas nuevas
+    </button>
+  </div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- Bota 1: notas que dejo a quien me tocó -->
+    <div class="bota">
+      <div class="bota-cabecera">
+        <svg class="bota-icono" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M13 12H29V31C29 33 29.8 34.3 31.6 35.4L37.5 39C40 40.5 41 42.2 41 44C41 45.5 40 46 38.5 46H15C13.9 46 13 45.1 13 44Z" fill="none" stroke="#a7303f" stroke-width="2.6" stroke-linejoin="round"/>
+          <rect x="9.5" y="4.5" width="23" height="9" rx="2.6" fill="none" stroke="#a7303f" stroke-width="2.6"/>
+          <path d="M9.5 9H32.5" stroke="#2b6955" stroke-width="1.7" stroke-dasharray="2 2.5"/>
+        </svg>
+        <div>
+          <div class="fila-titulo">
+            <span class="type-lead">Notas para {nombreAsignado}</span>
+            {noLeidasGiftee > 0 && <span class="sello">{noLeidasGiftee} nueva{noLeidasGiftee === 1 ? '' : 's'}</span>}
+          </div>
+          <div class="type-small" style="color: var(--muted);">Llegan firmadas como «Tu Amigo Secreto»</div>
+        </div>
+      </div>
+
+      <ul class="notas" data-lado="enviadas">
+        {notasEnviadas.length === 0 ? (
+          <li class="nota-vacia">Todavía no hay notas. Deja la primera abajo.</li>
+        ) : (
+          notasEnviadas.map((n, i) => (
+            <li class={`nota ${n.sender_role === 'santa' ? 'nota-mia' : 'nota-otra'}`} style={`--giro:${(i % 2 ? .5 : -.5)}deg`}>
+              <div class="nota-cab">
+                <span>{n.sender_role === 'santa' ? 'Tú' : nombreAsignado}</span>
+                <span class="tabular">{fecha(n.created_at)}</span>
+              </div>
+              <p>{n.content}</p>
+            </li>
+          ))
+        )}
+      </ul>
+
+      {noLeidasGiftee > 0 && (
+        <button type="button" class="btn-ghost bota-leidas" data-room={roomCode}>
+          Ya leí las respuestas
+        </button>
+      )}
+
+      <form class="bota-form" data-role="santa">
+        <input type="text" name="content" autocomplete="off" required placeholder={`Escribe una nota para ${nombreAsignado}…`} />
+        <button type="submit" class="btn-primary">Dejar en la bota</button>
+      </form>
+    </div>
+
+    <!-- Bota 2: notas que me deja mi Amigo Secreto -->
+    <div class="bota">
+      <div class="bota-cabecera">
+        <svg class="bota-icono" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M13 12H29V31C29 33 29.8 34.3 31.6 35.4L37.5 39C40 40.5 41 42.2 41 44C41 45.5 40 46 38.5 46H15C13.9 46 13 45.1 13 44Z" fill="none" stroke="#2b6955" stroke-width="2.6" stroke-linejoin="round"/>
+          <rect x="9.5" y="4.5" width="23" height="9" rx="2.6" fill="none" stroke="#2b6955" stroke-width="2.6"/>
+          <path d="M9.5 9H32.5" stroke="#a7303f" stroke-width="1.7" stroke-dasharray="2 2.5"/>
+        </svg>
+        <div>
+          <div class="fila-titulo">
+            <span class="type-lead">Notas de tu Amigo Secreto</span>
+            {noLeidasSanta > 0 && <span class="sello">{noLeidasSanta} nueva{noLeidasSanta === 1 ? '' : 's'}</span>}
+          </div>
+          <div class="type-small" style="color: var(--muted);">Nunca sabrás quién las escribió</div>
+        </div>
+      </div>
+
+      <ul class="notas" data-lado="recibidas">
+        {notasRecibidas.length === 0 ? (
+          <li class="nota-vacia">La bota está vacía. Cuando tu Amigo Secreto deje algo, te avisamos.</li>
+        ) : (
+          notasRecibidas.map((n, i) => (
+            <li class={`nota ${n.sender_role === 'giftee' ? 'nota-mia' : 'nota-otra'} ${!n.read_at && n.sender_role !== 'giftee' ? 'nota-nueva' : ''}`} style={`--giro:${(i % 2 ? .6 : -.4)}deg`}>
+              <div class="nota-cab">
+                <span>{n.sender_role === 'giftee' ? 'Tú' : 'Tu Amigo Secreto'}</span>
+                <span class="tabular">{fecha(n.created_at)}</span>
+              </div>
+              <p>{n.content}</p>
+            </li>
+          ))
+        )}
+      </ul>
+
+      {noLeidasSanta > 0 && (
+        <button type="button" class="btn-ghost bota-leidas" data-room={roomCode}>
+          Ya leí las notas
+        </button>
+      )}
+
+      <form class="bota-form" data-role="giftee">
+        <input type="text" name="content" autocomplete="off" required placeholder="Responder o dejar una pista…" />
+        <button type="submit" class="btn-secondary">Dejar en la bota</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<style>
+  .bota {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    background-color: var(--surface-raised);
+    border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+    border-radius: 16px;
+    box-shadow: var(--sombra-1);
+  }
+
+  .bota-cabecera { display: flex; align-items: center; gap: 12px; }
+  .bota-icono { width: 46px; height: 46px; flex: none; }
+
+  .notas {
+    list-style: none;
+    margin: 0;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 148px;
+    max-height: 320px;
+    overflow-y: auto;
+    border-radius: 12px;
+    background-color: #f7efe3;
+    background-image: repeating-linear-gradient(180deg, transparent 0 27px, rgba(167, 48, 63, .07) 27px 28px);
+  }
+
+  .nota {
+    position: relative;
+    padding: 10px 12px 12px;
+    background-color: #fffdf7;
+    border: 1px solid #e6d9c4;
+    border-radius: 4px;
+    transform: rotate(var(--giro, 0deg));
+    box-shadow: 0 2px 6px -3px rgba(23, 29, 27, .35);
+  }
+
+  .nota::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 14px;
+    width: 34px;
+    height: 7px;
+    background-color: rgba(167, 48, 63, .22);
+    border-radius: 0 0 3px 3px;
+  }
+
+  .nota-mia { border-left: 3px solid var(--accent); }
+  .nota-otra { border-left: 3px solid var(--pine); }
+
+  .nota-nueva {
+    box-shadow: 0 0 0 2px var(--accent), 0 6px 14px -8px rgba(167, 48, 63, .6);
+  }
+
+  .nota-cab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-family: var(--font-display);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #8a7a63;
+    margin-bottom: 5px;
+  }
+
+  .nota p { margin: 0; font-size: 14px; line-height: 1.45; color: #2a2420; overflow-wrap: anywhere; }
+
+  .nota-vacia {
+    font-size: 13px;
+    color: #9a8a72;
+    text-align: center;
+    padding: 34px 12px;
+    font-style: italic;
+  }
+
+  .fila-titulo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+  .sello {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 9999px;
+    background-color: var(--accent);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 9px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+
+  .bota-form { display: flex; gap: 8px; flex-wrap: wrap; }
+  .bota-form input { flex: 1 1 180px; min-width: 0; }
+  .bota-form button { flex: 0 0 auto; white-space: nowrap; }
+
+  @media (max-width: 420px) {
+    .bota-form { flex-direction: column; }
+    .bota-form input { flex: 0 0 auto; width: 100%; min-height: 44px; }
+    .bota-form button { flex: 0 0 auto; width: 100%; }
+    .bota { padding: 14px; }
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    const botonAvisos = document.getElementById('bota-avisos');
+
+    // ---------- notas: envío sin tiempo real ----------
+    document.querySelectorAll('.bota-form').forEach(function (form) {
+      form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const input = form.querySelector('input[name="content"]');
+        const boton = form.querySelector('button[type="submit"]');
+        const role = form.getAttribute('data-role');
+        if (!input || !input.value.trim() || boton.disabled) return;
+
+        const texto = input.value.trim();
+        boton.disabled = true;
+        boton.textContent = 'Dejando…';
+
+        try {
+          const code = location.pathname.split('/').filter(Boolean).pop();
+          const res = await fetch('/api/rooms/' + encodeURIComponent(code) + '/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: role, content: texto }),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(function () { return {}; });
+            alert(data.error || 'No se pudo dejar la nota.');
+            return;
+          }
+          input.value = '';
+          location.reload();
+        } catch {
+          alert('Sin conexión. La nota no se guardó.');
+        } finally {
+          boton.disabled = false;
+          boton.textContent = 'Dejar en la bota';
+        }
+      });
+    });
+
+    // ---------- marcar notas como leídas ----------
+    document.querySelectorAll('.bota-leidas').forEach(function (boton) {
+      boton.addEventListener('click', async function () {
+        const code = boton.getAttribute('data-room');
+        boton.disabled = true;
+        try {
+          await fetch('/api/rooms/' + encodeURIComponent(code) + '/messages/read', { method: 'POST' });
+          location.reload();
+        } catch {
+          boton.disabled = false;
+        }
+      });
+    });
+
+    // ---------- avisos push ----------
+    function b64aUint8(base64) {
+      const padding = '='.repeat((4 - (base64.length % 4)) % 4);
+      const raw = atob((base64 + padding).replace(/-/g, '+').replace(/_/g, '/'));
+      return Uint8Array.from(raw, function (c) { return c.charCodeAt(0); });
+    }
+
+    async function estadoAvisos() {
+      if (!botonAvisos) return;
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        botonAvisos.textContent = 'Avisos no disponibles en este navegador';
+        botonAvisos.disabled = true;
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        botonAvisos.textContent = 'Avisos activados ✓';
+        botonAvisos.setAttribute('data-suscrito', 'si');
+      }
+    }
+
+    if (botonAvisos) {
+      botonAvisos.addEventListener('click', async function () {
+        if (botonAvisos.getAttribute('data-suscrito') === 'si') return;
+        try {
+          const permiso = await Notification.requestPermission();
+          if (permiso !== 'granted') {
+            botonAvisos.textContent = 'Permiso de avisos denegado';
+            return;
+          }
+          const reg = await navigator.serviceWorker.ready;
+          const clave = await fetch('/api/push/key').then(function (r) { return r.json(); });
+          const sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: b64aUint8(clave.publicKey),
+          });
+          await fetch('/api/push/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(sub),
+          });
+          botonAvisos.textContent = 'Avisos activados ✓';
+          botonAvisos.setAttribute('data-suscrito', 'si');
+        } catch (err) {
+          console.error(err);
+          botonAvisos.textContent = 'No se pudieron activar los avisos';
+        }
+      });
+      estadoAvisos();
+    }
+  })();
+</script>

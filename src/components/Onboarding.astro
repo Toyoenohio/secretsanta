@@ -1,0 +1,487 @@
+---
+/**
+ * Onboarding de primera entrada.
+ * Se muestra una sola vez por navegador (localStorage) y no aparece en las
+ * pantallas de acceso. Se puede reabrir desde el pie: «¿Cómo funciona?».
+ */
+interface Props {
+  loggedIn?: boolean;
+  joinCode?: string;
+}
+const { loggedIn = false, joinCode = '' } = Astro.props;
+
+const pasos = [
+  {
+    n: '01',
+    titulo: 'Entrá con el código',
+    texto:
+      'La sala la crea quien organiza el intercambio y te pasa un código. Entrás con tu cuenta desde el teléfono, sin instalar nada.',
+    icono: 'enlace',
+  },
+  {
+    n: '02',
+    titulo: 'Cargá tu wishlist',
+    texto:
+      'Cada uno arma su lista de deseos con enlaces y prioridad. Las reservas son secretas: tu Santa ve qué falta, no quién lo tomó.',
+    icono: 'lista',
+  },
+  {
+    n: '03',
+    titulo: 'Sorteo y botas',
+    texto:
+      'El sorteo es cerrado: nadie se regala a sí mismo ni repite del año anterior. Después podés dejar notas anónimas en la bota y activar los avisos.',
+    icono: 'botas',
+  },
+];
+
+const cta = loggedIn
+  ? { href: joinCode ? `/?join=${encodeURIComponent(joinCode)}` : '/', texto: 'Ir a mis salas' }
+  : { href: '/register', texto: 'Crear mi cuenta' };
+---
+
+<div id="ss-onboarding" class="ob" hidden>
+  <div class="ob-backdrop" data-ob-close></div>
+
+  <div class="ob-panel" role="dialog" aria-modal="true" aria-labelledby="ob-title" aria-describedby="ob-text">
+    <div class="ob-bar">
+      <span class="ob-eyebrow"><span class="ob-star">★</span> Cómo funciona</span>
+      <button type="button" class="ob-x" data-ob-close aria-label="Cerrar la guía">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
+    </div>
+
+    <div class="ob-steps">
+      {pasos.map((p, i) => (
+        <section class="ob-step" data-step={i} hidden={i !== 0} aria-hidden={i !== 0 ? 'true' : 'false'}>
+          <div class="ob-figure">
+            {p.icono === 'enlace' && (
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M20 28l8-8" />
+                <path d="M24.5 16.5l3-3a6 6 0 0 1 8.5 8.5l-4.5 4.5a6 6 0 0 1-8.5 0" />
+                <path d="M23.5 31.5l-3 3a6 6 0 0 1-8.5-8.5l4.5-4.5a6 6 0 0 1 8.5 0" />
+              </svg>
+            )}
+            {p.icono === 'lista' && (
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <rect x="11" y="9" width="26" height="30" rx="2" />
+                <path d="M17 18h6M17 25h14M17 32h10" />
+                <path d="M29 16.5l2 2 3.5-3.5" />
+              </svg>
+            )}
+            {p.icono === 'botas' && (
+              <svg viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M14 10h9v14c0 1.6.6 2.6 2 3.4l4.4 2.4c1.7 1 2.6 2.2 2.6 3.7V39H14z" />
+                <path d="M33 22.5c2 1.2 3 2.8 3 4.8V39" />
+                <path d="M19 16h5" />
+              </svg>
+            )}
+          </div>
+
+          <div class="ob-copy">
+            <p class="ob-num">{p.n} <span>/ {String(pasos.length).padStart(2, '0')}</span></p>
+            <h2 id={i === 0 ? 'ob-title' : undefined} class="ob-title">{p.titulo}</h2>
+            <p id={i === 0 ? 'ob-text' : undefined} class="ob-texto">{p.texto}</p>
+          </div>
+        </section>
+      ))}
+    </div>
+
+    <div class="ob-foot">
+      <div class="ob-dots" role="tablist" aria-label="Pasos de la guía">
+        {pasos.map((_, i) => (
+          <button
+            type="button"
+            class="ob-dot"
+            data-ob-dot={i}
+            role="tab"
+            aria-selected={i === 0 ? 'true' : 'false'}
+            aria-label={`Paso ${i + 1}`}
+          ></button>
+        ))}
+      </div>
+
+      <div class="ob-actions">
+        <button type="button" class="ob-ghost" data-ob-skip>Saltar</button>
+        <button type="button" class="ob-ghost" data-ob-prev hidden>Atrás</button>
+        <button type="button" class="ob-next" data-ob-next>Siguiente</button>
+        <a class="ob-next" data-ob-done href={cta.href} hidden>{cta.texto}</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ob {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .ob[hidden] {
+    display: none;
+  }
+  .ob-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(12, 20, 16, 0.55);
+    backdrop-filter: blur(3px);
+  }
+  .ob-panel {
+    position: relative;
+    width: min(560px, 100%);
+    max-height: min(86svh, 640px);
+    overflow-y: auto;
+    background: var(--surface-raised);
+    border: 1px solid var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--sombra-2);
+    padding: 22px 24px 20px;
+  }
+  .ob-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--surface);
+  }
+  .ob-eyebrow {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ob-star {
+    color: var(--gold);
+    margin-right: 6px;
+  }
+  .ob-x {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--surface);
+    border-radius: var(--radius-sm);
+    background: var(--ui-paper);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .ob-x:hover {
+    color: var(--ink);
+  }
+  .ob-x svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+  .ob-steps {
+    padding: 20px 0 4px;
+  }
+  .ob-step {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 18px;
+    align-items: start;
+  }
+  .ob-step[hidden] {
+    display: none;
+  }
+  .ob-figure {
+    width: 76px;
+    height: 76px;
+    display: grid;
+    place-items: center;
+    background: var(--pine-soft);
+    border-radius: var(--radius-md);
+  }
+  .ob-figure svg {
+    width: 40px;
+    height: 40px;
+    fill: none;
+    stroke: var(--pine-deep);
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .ob-num {
+    margin: 0 0 6px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    color: var(--accent);
+  }
+  .ob-num span {
+    color: var(--muted);
+  }
+  .ob-title {
+    margin: 0 0 8px;
+    font-family: var(--font-display);
+    font-size: 24px;
+    line-height: 1.15;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+  }
+  .ob-texto {
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.65;
+    color: var(--muted);
+  }
+  .ob-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding-top: 16px;
+    border-top: 1px solid var(--surface);
+    flex-wrap: wrap;
+  }
+  .ob-dots {
+    display: flex;
+    gap: 7px;
+  }
+  .ob-dot {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border: 0;
+    border-radius: 2px;
+    background: var(--surface);
+    cursor: pointer;
+  }
+  .ob-dot[aria-selected='true'] {
+    background: var(--accent);
+  }
+  .ob-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+  .ob-ghost {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+  }
+  .ob-ghost:hover {
+    color: var(--ink);
+    background: var(--ui-paper);
+  }
+  .ob-ghost[hidden] {
+    display: none;
+  }
+  .ob-next {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 0 20px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: 0;
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .ob-next:hover {
+    background: var(--accent-hover);
+  }
+  .ob-next[hidden] {
+    display: none;
+  }
+
+  @media (max-width: 640px) {
+    .ob {
+      align-items: flex-end;
+      padding: 0;
+    }
+    .ob-panel {
+      width: 100%;
+      max-height: 90svh;
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+    }
+    .ob-step {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .ob-figure {
+      width: 60px;
+      height: 60px;
+    }
+    .ob-figure svg {
+      width: 32px;
+      height: 32px;
+    }
+    .ob-title {
+      font-size: 21px;
+    }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ob-panel {
+      animation: ob-in 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes ob-in {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    var KEY = 'ss_onboarding_v1';
+    var root = document.getElementById('ss-onboarding');
+    if (!root) return;
+
+    var pasos = Array.prototype.slice.call(root.querySelectorAll('[data-step]'));
+    var dots = Array.prototype.slice.call(root.querySelectorAll('[data-ob-dot]'));
+    var prev = root.querySelector('[data-ob-prev]');
+    var next = root.querySelector('[data-ob-next]');
+    var done = root.querySelector('[data-ob-done]');
+    var skip = root.querySelector('[data-ob-skip]');
+    var panel = root.querySelector('.ob-panel');
+    var actual = 0;
+    var ultimoFoco = null;
+
+    function pintar() {
+      pasos.forEach(function (p, i) {
+        var visible = i === actual;
+        p.hidden = !visible;
+        p.setAttribute('aria-hidden', visible ? 'false' : 'true');
+      });
+      dots.forEach(function (d, i) {
+        d.setAttribute('aria-selected', i === actual ? 'true' : 'false');
+      });
+      prev.hidden = actual === 0;
+      var esUltimo = actual === pasos.length - 1;
+      next.hidden = esUltimo;
+      done.hidden = !esUltimo;
+      skip.hidden = esUltimo;
+      if (esUltimo) done.focus({ preventScroll: true });
+      else next.focus({ preventScroll: true });
+    }
+
+    function abrir(forzar) {
+      var sinGuia = /^\/(login|register|forgot|reset)/.test(location.pathname);
+      var visto = false;
+      try {
+        visto = localStorage.getItem(KEY) === '1';
+      } catch (e) {}
+      if ((visto || sinGuia) && !forzar) return;
+
+      ultimoFoco = document.activeElement;
+      actual = 0;
+      root.hidden = false;
+      document.body.style.overflow = 'hidden';
+      pintar();
+      panel.scrollTop = 0;
+    }
+
+    function cerrar() {
+      root.hidden = true;
+      document.body.style.overflow = '';
+      try {
+        localStorage.setItem(KEY, '1');
+      } catch (e) {}
+      if (ultimoFoco && ultimoFoco.focus) ultimoFoco.focus({ preventScroll: true });
+    }
+
+    next.addEventListener('click', function () {
+      if (actual < pasos.length - 1) {
+        actual++;
+        pintar();
+      }
+    });
+    prev.addEventListener('click', function () {
+      if (actual > 0) {
+        actual--;
+        pintar();
+      }
+    });
+    dots.forEach(function (d, i) {
+      d.addEventListener('click', function () {
+        actual = i;
+        pintar();
+      });
+    });
+    root.querySelectorAll('[data-ob-close], [data-ob-skip]').forEach(function (b) {
+      b.addEventListener('click', cerrar);
+    });
+    done.addEventListener('click', function () {
+      try {
+        localStorage.setItem(KEY, '1');
+      } catch (e) {}
+    });
+
+    document.addEventListener('keydown', function (ev) {
+      if (root.hidden) return;
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        cerrar();
+        return;
+      }
+      if (ev.key === 'ArrowRight' && actual < pasos.length - 1) {
+        actual++;
+        pintar();
+      }
+      if (ev.key === 'ArrowLeft' && actual > 0) {
+        actual--;
+        pintar();
+      }
+      if (ev.key === 'Tab') {
+        var enfocables = panel.querySelectorAll('button:not([hidden]), a:not([hidden])');
+        if (!enfocables.length) return;
+        var primero = enfocables[0];
+        var ultimo = enfocables[enfocables.length - 1];
+        if (ev.shiftKey && document.activeElement === primero) {
+          ev.preventDefault();
+          ultimo.focus();
+        } else if (!ev.shiftKey && document.activeElement === ultimo) {
+          ev.preventDefault();
+          primero.focus();
+        }
+      }
+    });
+
+    window.ssOnboarding = { open: function () { abrir(true); } };
+    document.querySelectorAll('[data-onboarding-open]').forEach(function (b) {
+      b.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        abrir(true);
+      });
+    });
+
+    setTimeout(function () {
+      abrir(false);
+    }, 450);
+  })();
+</script>

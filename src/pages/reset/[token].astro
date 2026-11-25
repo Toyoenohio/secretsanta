@@ -1,0 +1,115 @@
+---
+import Layout from '../../layouts/Layout.astro';
+
+const token = Astro.params.token || '';
+---
+
+<Layout title="Nueva contraseña">
+  <div class="page-frame pt-10 pb-16">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+      <div class="lg:col-span-5 space-y-5">
+        <h1 class="type-display reveal-item">Elegí tu nueva contraseña.</h1>
+        <p class="type-body reveal-item reveal-delay-1">
+          Al guardarla se cierran todas las sesiones que quedaron abiertas en otros dispositivos.
+        </p>
+      </div>
+
+      <div class="lg:col-span-7">
+        <div class="surface-panel max-w-xl space-y-6 reveal-item reveal-delay-1">
+          <div class="space-y-1">
+            <h2 class="type-lead">Contraseña nueva</h2>
+            <p class="type-small" style="color: var(--muted);">Mínimo 8 caracteres.</p>
+          </div>
+
+          <div
+            id="reset-error"
+            class="hidden p-3.5 rounded-[8px] type-small"
+            style="background-color: var(--danger-bg); color: var(--danger-ink);"
+          ></div>
+
+          <div
+            id="reset-ok"
+            class="hidden p-3.5 rounded-[8px] type-small"
+            style="background-color: var(--ok-bg, #10331f); color: var(--ok-ink, #b7e4c7);"
+          ></div>
+
+          <form id="reset-form" class="space-y-4" data-token={token}>
+            <div>
+              <label for="reset-password" class="block type-small mb-1.5">Contraseña</label>
+              <input id="reset-password" type="password" name="password" required minlength="8"
+                     placeholder="Tu contraseña nueva" autocomplete="new-password" />
+            </div>
+
+            <div>
+              <label for="reset-password2" class="block type-small mb-1.5">Repetir contraseña</label>
+              <input id="reset-password2" type="password" name="password2" required minlength="8"
+                     placeholder="Otra vez, para confirmar" autocomplete="new-password" />
+            </div>
+
+            <button type="submit" id="reset-btn" class="btn-primary w-full">
+              Guardar contraseña
+            </button>
+          </form>
+
+          <p class="type-small pt-2" style="color: var(--muted);">
+            <a href="/forgot" style="color: var(--ink); font-weight: 600; text-decoration: underline;">
+              Pedir un enlace nuevo
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script is:inline>
+    const form = document.getElementById('reset-form');
+    const errorBox = document.getElementById('reset-error');
+    const okBox = document.getElementById('reset-ok');
+    const btn = document.getElementById('reset-btn');
+    const token = form?.getAttribute('data-token') || '';
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!errorBox || !okBox || !btn) return;
+      errorBox.classList.add('hidden');
+      okBox.classList.add('hidden');
+
+      const data = new FormData(form);
+      const password = String(data.get('password') || '');
+      const password2 = String(data.get('password2') || '');
+
+      if (password !== password2) {
+        errorBox.textContent = 'Las dos contraseñas no coinciden.';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Guardando...';
+
+      try {
+        const res = await fetch('/api/auth/reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, password }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          errorBox.textContent = json.error || 'No se pudo cambiar la contraseña.';
+          errorBox.classList.remove('hidden');
+        } else {
+          okBox.textContent = json.mensaje;
+          okBox.classList.remove('hidden');
+          form.reset();
+          setTimeout(() => { window.location.href = '/login?reset=1'; }, 2200);
+        }
+      } catch {
+        errorBox.textContent = 'Error de conexión. Probá de nuevo.';
+        errorBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Guardar contraseña';
+      }
+    });
+  </script>
+</Layout>
