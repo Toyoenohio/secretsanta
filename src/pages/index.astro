@@ -165,9 +165,19 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
                         </div>
                       </div>
                     </div>
-                    <span class="status-pill status-pill-success" id="demo-cycle-pill">
-                      Ciclo 4/4 verificado
-                    </span>
+                    <div class="flex items-center gap-2">
+                      <span class="status-pill status-pill-success" id="demo-cycle-pill">
+                        Ciclo 4/4 verificado
+                      </span>
+                      <button
+                        type="button"
+                        id="demo-test-folded-paper"
+                        class="btn-ghost !text-xs !py-1 !px-2.5 rounded-full"
+                        title="Ver animación 3D de papelito doblado"
+                      >
+                        Papelito 3D
+                      </button>
+                    </div>
                   </div>
 
                   <div class="p-3.5 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-3" style="background-color: var(--ui-paper);">
@@ -948,6 +958,18 @@ const drawnRoomsCount = myRooms.filter((r) => r.status === 'drawn').length;
       selectDemoSlip(0);
       if (cyclePill) {
         cyclePill.textContent = 'Nuevo ciclo 4/4 generado';
+      }
+    });
+
+    const testPaperBtn = document.getElementById('demo-test-folded-paper');
+    testPaperBtn?.addEventListener('click', () => {
+      const p = demoParticipants[slipOffset % demoParticipants.length];
+      if (typeof window !== 'undefined' && typeof window.openFoldedPaperModal === 'function') {
+        window.openFoldedPaperModal({
+          name: p.name,
+          cardNumber: (slipOffset % demoParticipants.length) + 1,
+          autoOpen: true,
+        });
       }
     });
 

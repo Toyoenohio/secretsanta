@@ -569,9 +569,21 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
                       </div>
                     </div>
 
-                    <a href="#friend-wishlist" class="btn-primary self-start sm:self-center">
-                      Ver su wishlist ({receiverWishlist.length})
-                    </a>
+                    <div class="flex flex-wrap items-center gap-3 self-start sm:self-center">
+                      <button
+                        type="button"
+                        id="reopen-folded-paper-btn"
+                        class="btn-secondary"
+                        data-receiver-name={assignedReceiver.nickname || assignedReceiver.name}
+                        data-card-number={myMembership.card_number || 1}
+                        title="Ver de nuevo la animación 3D de tu papelito doblado"
+                      >
+                        Ver papelito doblado
+                      </button>
+                      <a href="#friend-wishlist" class="btn-primary">
+                        Ver su wishlist ({receiverWishlist.length})
+                      </a>
+                    </div>
                   </div>
 
                   <!-- Sizes Grid -->
@@ -1091,8 +1103,12 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
 
           const nameEl = btn.querySelector('.card-back-name');
           const avatarEl = btn.querySelector('.card-back-avatar');
+          const receiverDisplayName = data.receiver
+            ? data.receiver.nickname || data.receiver.name
+            : 'Tu amigo secreto';
+
           if (nameEl && data.receiver) {
-            nameEl.textContent = data.receiver.nickname || data.receiver.name;
+            nameEl.textContent = receiverDisplayName;
           }
           if (avatarEl && data.receiver) {
             const initials = (data.receiver.name || 'SS')
@@ -1106,17 +1122,42 @@ const hasRevealed = Boolean(myMembership?.has_revealed);
           btn.classList.add('card-flipped');
 
           if (revealBanner && data.receiver) {
-            revealBanner.textContent = `Sacaste el papelito #${cardNumber}. Tu amigo secreto es ${data.receiver.name}. Cargando su wishlist...`;
+            revealBanner.textContent = `Sacaste el papelito #${cardNumber}. Tu amigo secreto es ${data.receiver.name}.`;
             revealBanner.classList.remove('hidden');
           }
 
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
+          // Trigger 3D realistic folded paper unfolding effect!
+          if (typeof window !== 'undefined' && typeof window.openFoldedPaperModal === 'function') {
+            window.openFoldedPaperModal({
+              name: receiverDisplayName,
+              cardNumber: cardNumber,
+              autoOpen: true,
+              onComplete: () => {
+                window.location.reload();
+              },
+            });
+          } else {
+            setTimeout(() => {
+              window.location.reload();
+            }, 1200);
+          }
         } catch {
           pickingInProgress = false;
         }
       });
+    });
+
+    const reopenPaperBtn = document.getElementById('reopen-folded-paper-btn');
+    reopenPaperBtn?.addEventListener('click', () => {
+      const name = reopenPaperBtn.getAttribute('data-receiver-name') || 'Tu amigo secreto';
+      const cardNumber = Number(reopenPaperBtn.getAttribute('data-card-number')) || 1;
+      if (typeof window !== 'undefined' && typeof window.openFoldedPaperModal === 'function') {
+        window.openFoldedPaperModal({
+          name: name,
+          cardNumber: cardNumber,
+          autoOpen: true,
+        });
+      }
     });
 
     document.querySelectorAll('.reserve-wish-btn').forEach((btn) => {

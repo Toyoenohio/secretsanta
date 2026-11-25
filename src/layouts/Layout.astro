@@ -4,6 +4,7 @@ import type { User } from '../lib/db';
 import { formatAvatarLabel } from '../lib/auth';
 import ChristmasLights from '../components/ChristmasLights.astro';
 import Snowfall from '../components/Snowfall.astro';
+import FoldedPaperModal from '../components/FoldedPaperModal.astro';
 
 interface Props {
   title: string;
@@ -41,6 +42,12 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
     <link rel="preconnect" href="https://cdn.fontshare.com" crossorigin />
     <link
       href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Homemade+Apple&display=swap"
       rel="stylesheet"
     />
     <script is:inline>
@@ -230,6 +237,7 @@ const avatarLabel = user ? formatAvatarLabel(user.avatar, user.name) : 'SS';
     )}
 
     <Snowfall />
+    <FoldedPaperModal />
 
     <script is:inline>
       const themeBtn = document.getElementById('theme-toggle');

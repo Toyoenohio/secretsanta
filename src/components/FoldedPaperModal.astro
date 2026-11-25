@@ -1,0 +1,950 @@
+---
+/**
+ * 3D Realistic Folded Paper Modal for Secret Santa Sorteo.
+ * Simulates 3-step physical unfolding (1/8 -> 1/4 -> 1/2 -> full 4x2 sheet)
+ * with hierarchical 3D hinges, dynamic crease lighting, procedural Web Audio
+ * paper rustle sound, and continuous handwritten note across all 8 panels.
+ */
+---
+
+<div
+  id="folded-paper-modal"
+  class="fixed inset-0 z-50 hidden flex-col items-center justify-between p-4 sm:p-6 select-none overflow-hidden"
+  style="background-color: rgba(12, 20, 16, 0.94);"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Papel doblado de tu amigo secreto"
+  data-ui
+>
+  <!-- Top bar: Badge with 3-step progress dots, Sound toggle, and Close button -->
+  <header class="w-full max-w-2xl flex items-center justify-between pt-2">
+    <div class="inline-flex items-center gap-3 px-4 py-1.5 rounded-full type-small font-medium" style="background-color: var(--ui-paper); color: var(--ink);">
+      <span
+        class="w-3.5 h-3.5 inline-block shrink-0"
+        style="background-color: var(--gold); clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);"
+        aria-hidden="true"
+      ></span>
+      <span id="fp-modal-title">Papelito del sorteo</span>
+      <span class="inline-flex items-center gap-1.5 ml-1" aria-hidden="true">
+        <span class="fp-step-dot" data-dot="1"></span>
+        <span class="fp-step-dot" data-dot="2"></span>
+        <span class="fp-step-dot" data-dot="3"></span>
+      </span>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <!-- Sound toggle button -->
+      <button
+        type="button"
+        id="fp-sound-btn"
+        class="btn-ghost !p-2 rounded-full"
+        title="Activar o silenciar sonido de papel"
+        aria-label="Activar o silenciar sonido de papel"
+        aria-pressed="true"
+        style="color: var(--field-ink);"
+      >
+        <svg id="fp-sound-on" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+        </svg>
+        <svg id="fp-sound-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      </button>
+
+      <!-- Close button -->
+      <button
+        type="button"
+        id="fp-close-btn"
+        class="btn-ghost !p-2 rounded-full"
+        title="Cerrar vista de papelito"
+        aria-label="Cerrar vista de papelito"
+        style="color: var(--field-ink);"
+      >
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 3D Folding Stage -->
+  <section class="fp-stage" id="fp-stage" aria-label="Papel doblado en tres partes">
+    <div class="fp-tilt-wrapper" id="fp-tilt-wrapper">
+      <div class="fp-paper-rig" id="fp-paper-rig">
+        <!-- Mesa y proyección inferior -->
+        <div class="fp-table-shadow" aria-hidden="true"></div>
+
+        <!-- ROOT PANEL (0, 0) - Top Left -->
+        <div class="fp-panel" data-col="0" data-row="0" style="--col: 0; --row: 0;">
+          <div class="fp-face fp-face-front"></div>
+          <div class="fp-face fp-face-back"></div>
+
+          <!-- FOLD 1 (Row 0): connects (0,0) with (1,0) -->
+          <div class="fp-hinge fp-hinge-f1-r0">
+            <div class="fp-panel" data-col="1" data-row="0" style="--col: 1; --row: 0;">
+              <div class="fp-face fp-face-front"></div>
+              <div class="fp-face fp-face-back">
+                <!-- Outer cover visible when fully folded in 1/8 -->
+                <div class="fp-outer-mark" aria-hidden="true">
+                  <span
+                    class="w-5 h-5 inline-block mb-1"
+                    style="background-color: var(--accent); clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);"
+                  ></span>
+                  <span>abrir</span>
+                </div>
+              </div>
+
+              <!-- FOLD 3 (Row 0): connects (1,0) with (2,0) -->
+              <div class="fp-hinge fp-hinge-f3-r0">
+                <div class="fp-panel" data-col="2" data-row="0" style="--col: 2; --row: 0;">
+                  <div class="fp-face fp-face-front"></div>
+                  <div class="fp-face fp-face-back"></div>
+
+                  <!-- COUNTER-HINGE FOLD 1 (Row 0): connects (2,0) with (3,0) -->
+                  <div class="fp-hinge fp-hinge-f1c-r0">
+                    <div class="fp-panel" data-col="3" data-row="0" style="--col: 3; --row: 0;">
+                      <div class="fp-face fp-face-front"></div>
+                      <div class="fp-face fp-face-back"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FOLD 2: connects Row 0 with Row 1 (0,1) -->
+          <div class="fp-hinge fp-hinge-f2">
+            <div class="fp-panel" data-col="0" data-row="1" style="--col: 0; --row: 1;">
+              <div class="fp-face fp-face-front"></div>
+              <div class="fp-face fp-face-back"></div>
+
+              <!-- FOLD 1 (Row 1): connects (0,1) with (1,1) -->
+              <div class="fp-hinge fp-hinge-f1-r1">
+                <div class="fp-panel" data-col="1" data-row="1" style="--col: 1; --row: 1;">
+                  <div class="fp-face fp-face-front"></div>
+                  <div class="fp-face fp-face-back"></div>
+
+                  <!-- FOLD 3 (Row 1): connects (1,1) with (2,1) -->
+                  <div class="fp-hinge fp-hinge-f3-r1">
+                    <div class="fp-panel" data-col="2" data-row="1" style="--col: 2; --row: 1;">
+                      <div class="fp-face fp-face-front"></div>
+                      <div class="fp-face fp-face-back"></div>
+
+                      <!-- COUNTER-HINGE FOLD 1 (Row 1): connects (2,1) with (3,1) -->
+                      <div class="fp-hinge fp-hinge-f1c-r1">
+                        <div class="fp-panel" data-col="3" data-row="1" style="--col: 3; --row: 1;">
+                          <div class="fp-face fp-face-front"></div>
+                          <div class="fp-face fp-face-back"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Responsive Hitbox sitting in front of 3D layers for 100% reliable clicks -->
+        <div
+          class="fp-hitbox"
+          id="fp-hitbox"
+          role="button"
+          tabindex="0"
+          aria-label="Haz clic en el papel para abrirlo"
+        ></div>
+      </div>
+    </div>
+
+    <!-- Status hint below the paper -->
+    <p class="fp-hint" id="fp-hint-text" aria-live="polite">
+      Haz clic en el papel para abrirlo
+    </p>
+  </section>
+
+  <!-- Bottom Action Controls: Revealed friend confirmation & next steps -->
+  <footer class="w-full max-w-md flex flex-col items-center gap-3 pb-3">
+    <div
+      id="fp-action-box"
+      class="hidden w-full p-4 rounded-[12px] flex flex-col sm:flex-row items-center justify-between gap-3"
+      style="background-color: var(--ui-paper); color: var(--ink);"
+    >
+      <div class="text-center sm:text-left">
+        <div class="type-small font-semibold">Tu amigo secreto es:</div>
+        <div class="type-lead font-bold" id="fp-revealed-name-label" style="color: var(--accent);">
+          ...
+        </div>
+      </div>
+
+      <button
+        type="button"
+        id="fp-view-wishlist-btn"
+        class="btn-primary shrink-0 w-full sm:w-auto"
+      >
+        Ver su wishlist y tallas
+      </button>
+    </div>
+  </footer>
+</div>
+
+<style is:global>
+  /* =========================================================================
+     3D FOLDED PAPER ENGINE (4 COLUMNS × 2 ROWS)
+     ========================================================================= */
+  :root {
+    --fp-w: min(88vw, 460px);
+    --fp-h: calc(var(--fp-w) * 0.66);
+    --fp-pw: calc(var(--fp-w) / 4);
+    --fp-ph: calc(var(--fp-h) / 2);
+
+    --fp-paper-front: #fdfbf7;
+    --fp-paper-back: #f4eee2;
+    --fp-paper-edge: rgba(140, 122, 98, 0.28);
+    --fp-ink: #16241c;
+    --fp-ink-soft: rgba(22, 36, 28, 0.72);
+
+    --fp-fold-duration: 700ms;
+    --fp-fold-ease: cubic-bezier(0.42, 0.04, 0.22, 1);
+  }
+
+  /* Step dots indicator */
+  .fp-step-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(179, 38, 30, 0.24);
+    transition: transform 280ms ease, background-color 280ms ease;
+  }
+
+  .fp-step-dot.active {
+    background: var(--accent);
+    transform: scale(1.25);
+  }
+
+  /* 3D Stage */
+  .fp-stage {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(16px, 3vh, 28px);
+    perspective: 1400px;
+    perspective-origin: 50% 46%;
+    position: relative;
+  }
+
+  .fp-tilt-wrapper {
+    transform-style: preserve-3d;
+    transition: transform 320ms ease-out;
+    will-change: transform;
+  }
+
+  /* Main rig */
+  .fp-paper-rig {
+    position: relative;
+    width: var(--fp-w);
+    height: var(--fp-h);
+    transform-style: preserve-3d;
+    pointer-events: none;
+    transition: transform var(--fp-fold-duration) var(--fp-fold-ease);
+    /* Step 0: 1/8 folded state */
+    transform:
+      translate3d(calc(var(--fp-pw) * 1.5), calc(var(--fp-ph) * 0.5), 0)
+      rotateX(14deg)
+      rotateZ(-4deg);
+  }
+
+  .fp-paper-rig.is-hovered {
+    transform:
+      translate3d(calc(var(--fp-pw) * 1.5), calc(var(--fp-ph) * 0.5 - 4px), 10px)
+      rotateX(11deg)
+      rotateZ(-2.6deg)
+      scale(1.03);
+  }
+
+  /* Step 1: 1/4 open (width 2pw, height 1ph) */
+  .fp-paper-rig.open-1 {
+    transform:
+      translate3d(calc(var(--fp-pw) * 1.0), calc(var(--fp-ph) * 0.5), 0)
+      rotateX(10deg)
+      rotateZ(-2deg);
+  }
+
+  /* Step 2: 1/2 open (width 2pw, height 2ph) */
+  .fp-paper-rig.open-1.open-2 {
+    transform:
+      translate3d(calc(var(--fp-pw) * 1.0), 0px, 0)
+      rotateX(7deg)
+      rotateZ(-0.8deg);
+  }
+
+  /* Step 3: Full open (width 4pw, height 2ph) */
+  .fp-paper-rig.open-1.open-2.open-3 {
+    transform:
+      translate3d(0px, 0px, 0)
+      rotateX(3deg)
+      rotateZ(0deg);
+  }
+
+  .fp-paper-rig.open-1.open-2.open-3.is-hovered {
+    transform:
+      translate3d(0px, -3px, 8px)
+      rotateX(2deg)
+      rotateZ(0deg)
+      scale(1.012);
+  }
+
+  /* Hitbox */
+  .fp-hitbox {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--fp-pw);
+    height: var(--fp-ph);
+    transform: translateZ(14px);
+    pointer-events: auto;
+    cursor: pointer;
+    border-radius: 4px;
+    outline: none;
+    background: transparent;
+    transition:
+      width var(--fp-fold-duration) var(--fp-fold-ease),
+      height var(--fp-fold-duration) var(--fp-fold-ease);
+  }
+
+  .fp-hitbox:focus-visible {
+    outline: 2px solid var(--accent); /* taste-skill-ignore */
+  }
+
+  .fp-paper-rig.open-1 .fp-hitbox {
+    width: calc(var(--fp-pw) * 2);
+    height: var(--fp-ph);
+  }
+
+  .fp-paper-rig.open-1.open-2 .fp-hitbox {
+    width: calc(var(--fp-pw) * 2);
+    height: calc(var(--fp-ph) * 2);
+  }
+
+  .fp-paper-rig.open-1.open-2.open-3 .fp-hitbox {
+    width: var(--fp-w);
+    height: var(--fp-h);
+  }
+
+  /* Projection beneath the folded paper */
+  .fp-table-shadow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--fp-pw);
+    height: var(--fp-ph);
+    border-radius: 4px;
+    background: rgba(10, 18, 14, 0.42);
+    filter: blur(14px);
+    transform: translate3d(5px, 12px, -6px) scale(0.96);
+    transition:
+      width var(--fp-fold-duration) var(--fp-fold-ease),
+      height var(--fp-fold-duration) var(--fp-fold-ease),
+      transform var(--fp-fold-duration) var(--fp-fold-ease),
+      opacity var(--fp-fold-duration) var(--fp-fold-ease);
+    pointer-events: none;
+  }
+
+  .fp-paper-rig.is-hovered .fp-table-shadow {
+    transform: translate3d(7px, 17px, -10px) scale(0.98);
+    opacity: 0.95;
+  }
+
+  .fp-paper-rig.open-1 .fp-table-shadow {
+    width: calc(var(--fp-pw) * 2);
+    height: var(--fp-ph);
+    transform: translate3d(4px, 11px, -6px) scale(0.97);
+    opacity: 0.9;
+  }
+
+  .fp-paper-rig.open-1.open-2 .fp-table-shadow {
+    width: calc(var(--fp-pw) * 2);
+    height: calc(var(--fp-ph) * 2);
+    transform: translate3d(3px, 10px, -6px) scale(0.98);
+    opacity: 0.8;
+  }
+
+  .fp-paper-rig.open-1.open-2.open-3 .fp-table-shadow {
+    width: var(--fp-w);
+    height: var(--fp-h);
+    transform: translate3d(2px, 10px, -6px) scale(0.985);
+    opacity: 0.65;
+  }
+
+  /* Status hint pill */
+  .fp-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--field-ink);
+    padding: 6px 16px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16);
+    pointer-events: none;
+    transition: opacity 280ms ease, transform 280ms ease;
+  }
+
+  /* Kinematic 3D hierarchy of panels and hinges */
+  .fp-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--fp-pw);
+    height: var(--fp-ph);
+    transform-style: preserve-3d;
+    pointer-events: none;
+  }
+
+  .fp-hinge {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--fp-pw);
+    height: var(--fp-ph);
+    transform-style: preserve-3d;
+    pointer-events: none;
+    transition: transform var(--fp-fold-duration) var(--fp-fold-ease);
+    will-change: transform;
+  }
+
+  /* Row 0 hinges */
+  .fp-hinge-f1-r0 {
+    left: var(--fp-pw);
+    transform-origin: left center;
+    transform: translateZ(5.6px) rotateY(-180deg);
+  }
+  .fp-paper-rig.open-1 .fp-hinge-f1-r0 {
+    transform: translateZ(0px) rotateY(0deg);
+  }
+
+  .fp-hinge-f3-r0 {
+    left: var(--fp-pw);
+    transform-origin: left center;
+    transform: translateZ(0.8px) rotateY(-180deg);
+  }
+  .fp-paper-rig.open-3 .fp-hinge-f3-r0 {
+    transform: translateZ(0px) rotateY(0deg);
+  }
+
+  .fp-hinge-f1c-r0 {
+    left: var(--fp-pw);
+    transform-origin: left center;
+    transform: translateZ(-4.0px) rotateY(180deg);
+  }
+  .fp-paper-rig.open-1 .fp-hinge-f1c-r0 {
+    transform: translateZ(0px) rotateY(0deg);
+  }
+
+  /* Row 1 hinges */
+  .fp-hinge-f2 {
+    top: var(--fp-ph);
+    left: 0;
+    transform-origin: center top;
+    transform: translateZ(2.4px) rotateX(180deg);
+  }
+  .fp-paper-rig.open-2 .fp-hinge-f2 {
+    transform: translateZ(0px) rotateX(0deg);
+  }
+
+  .fp-hinge-f1-r1 {
+    left: var(--fp-pw);
+    transform-origin: left center;
+    transform: translateZ(-0.8px) rotateY(180deg);
+  }
+  .fp-paper-rig.open-1 .fp-hinge-f1-r1 {
+    transform: translateZ(0px) rotateY(0deg);
+  }
+
+  .fp-hinge-f3-r1 {
+    left: var(--fp-pw);
+    transform-origin: left center;
+    transform: translateZ(0.8px) rotateY(-180deg);
+  }
+  .fp-paper-rig.open-3 .fp-hinge-f3-r1 {
+    transform: translateZ(0px) rotateY(0deg);
+  }
+
+  .fp-hinge-f1c-r1 {
+    left: var(--fp-pw);
+    transform-origin: left center;
+    transform: translateZ(2.4px) rotateY(-180deg);
+  }
+  .fp-paper-rig.open-1 .fp-hinge-f1c-r1 {
+    transform: translateZ(0px) rotateY(0deg);
+  }
+
+  /* Front and back panel faces */
+  .fp-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .fp-face-front {
+    background-color: var(--fp-paper-front);
+  }
+
+  .fp-face-back {
+    background-color: var(--fp-paper-back);
+    transform: rotateY(180deg);
+  }
+
+  /* Paper texture overlay */
+  .fp-face::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.32;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='p'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23p)' opacity='0.28'/%3E%3C/svg%3E");
+    z-index: 3;
+  }
+
+  .fp-face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 4;
+    transition: background var(--fp-fold-duration) ease, opacity var(--fp-fold-duration) ease;
+  }
+
+  .fp-face-front::after {
+    box-shadow: inset 0 0 0 0.5px rgba(135, 118, 95, 0.14), inset 1px 1px 6px rgba(255, 255, 255, 0.55); /* taste-skill-ignore */
+  }
+
+  /* Dynamic crease shadows across odd and even columns */
+  .fp-panel[data-col="1"] .fp-face-front::after,
+  .fp-panel[data-col="3"] .fp-face-front::after {
+    background: linear-gradient(90deg, rgba(96, 78, 56, 0.068) 0%, rgba(96, 78, 56, 0.015) 14%, transparent 45%); /* taste-skill-ignore */
+  }
+
+  .fp-panel[data-col="0"] .fp-face-front::after,
+  .fp-panel[data-col="2"] .fp-face-front::after {
+    background: linear-gradient(270deg, rgba(96, 78, 56, 0.058) 0%, rgba(96, 78, 56, 0.01) 14%, transparent 45%); /* taste-skill-ignore */
+  }
+
+  .fp-panel[data-row="1"] .fp-face-front {
+    border-top: 1px solid rgba(112, 92, 68, 0.085); /* taste-skill-ignore */
+  }
+
+  .fp-panel[data-col="0"] .fp-face-front { border-left: 1px solid var(--fp-paper-edge); /* taste-skill-ignore */ }
+  .fp-panel[data-col="3"] .fp-face-front { border-right: 1px solid var(--fp-paper-edge); /* taste-skill-ignore */ }
+  .fp-panel[data-row="0"] .fp-face-front { border-top: 1px solid var(--fp-paper-edge); /* taste-skill-ignore */ }
+  .fp-panel[data-row="1"] .fp-face-front { border-bottom: 1px solid var(--fp-paper-edge); /* taste-skill-ignore */ }
+
+  .fp-face-back::after {
+    box-shadow: inset 0 0 0 0.6px rgba(120, 102, 78, 0.22), inset 0 0 18px rgba(120, 102, 78, 0.06); /* taste-skill-ignore */
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, rgba(120, 100, 74, 0.05) 100%); /* taste-skill-ignore */
+  }
+
+  .fp-paper-rig:not(.open-3) .fp-face-front::after {
+    background: rgba(65, 50, 32, 0.09);
+  }
+
+  /* Outer cover marking */
+  .fp-outer-mark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    color: var(--accent);
+    z-index: 2;
+    transition: opacity 320ms ease, transform 240ms ease;
+  }
+
+  .fp-paper-rig.is-hovered:not(.open-1) .fp-outer-mark {
+    transform: scale(1.08);
+  }
+
+  .fp-outer-mark span {
+    font-family: 'Caveat', cursive, sans-serif;
+    font-size: clamp(14px, 2.5vw, 17px);
+    letter-spacing: 0.02em;
+    transform: rotate(-3deg);
+  }
+
+  .fp-paper-rig.open-1 .fp-outer-mark {
+    opacity: 0.15;
+  }
+
+  /* Interior Handwritten Sheet Viewport */
+  .fp-sheet-viewport {
+    position: absolute;
+    width: var(--fp-w);
+    height: var(--fp-h);
+    top: calc(-1 * var(--row) * var(--fp-ph));
+    left: calc(-1 * var(--col) * var(--fp-pw));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8% 9%;
+    z-index: 2;
+  }
+
+  .fp-sheet-viewport::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(90deg, transparent calc(50% - 2px), rgba(110, 92, 70, 0.095) 50%, rgba(255, 255, 255, 0.48) calc(50% + 1px), transparent calc(50% + 3px)), /* taste-skill-ignore */
+      linear-gradient(180deg, transparent calc(50% - 2px), rgba(110, 92, 70, 0.095) 50%, rgba(255, 255, 255, 0.48) calc(50% + 1px), transparent calc(50% + 3px)); /* taste-skill-ignore */
+  }
+
+  .fp-note-inner {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transform: rotate(-2deg);
+    max-width: 92%;
+  }
+
+  .fp-note-label {
+    font-family: 'Caveat', cursive, sans-serif;
+    font-size: clamp(20px, 4.4vw, 28px);
+    font-weight: 600;
+    color: var(--fp-ink-soft);
+    margin-bottom: 2px;
+    letter-spacing: 0.01em;
+  }
+
+  .fp-note-name {
+    font-family: 'Homemade Apple', 'Caveat', cursive, sans-serif;
+    font-size: clamp(28px, 7.2vw, 46px);
+    line-height: 1.38;
+    color: var(--accent);
+    opacity: 0.95;
+    text-shadow: 0.4px 0.6px 0.6px rgba(179, 38, 30, 0.16); /* taste-skill-ignore */
+    word-break: break-word;
+    padding: 0 6px;
+  }
+
+  .fp-note-name.is-long {
+    font-size: clamp(22px, 5.2vw, 34px);
+  }
+
+  .fp-note-underline {
+    width: clamp(120px, 34vw, 195px);
+    height: 15px;
+    margin-top: -6px;
+    color: var(--accent);
+    opacity: 0.72;
+  }
+
+  .fp-note-doodle {
+    position: absolute;
+    top: -12px;
+    right: -26px;
+    width: 24px;
+    height: 24px;
+    color: var(--gold);
+    opacity: 0.85;
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    const modal = document.getElementById('folded-paper-modal');
+    if (!modal) return;
+
+    const paperRig = document.getElementById('fp-paper-rig');
+    const paperHitbox = document.getElementById('fp-hitbox');
+    const tiltWrapper = document.getElementById('fp-tilt-wrapper');
+    const stage = document.getElementById('fp-stage');
+    const hintText = document.getElementById('fp-hint-text');
+    const soundBtn = document.getElementById('fp-sound-btn');
+    const soundOn = document.getElementById('fp-sound-on');
+    const soundOff = document.getElementById('fp-sound-off');
+    const closeBtn = document.getElementById('fp-close-btn');
+    const actionBox = document.getElementById('fp-action-box');
+    const revealedNameLabel = document.getElementById('fp-revealed-name-label');
+    const viewWishlistBtn = document.getElementById('fp-view-wishlist-btn');
+    const modalTitle = document.getElementById('fp-modal-title');
+    const stepDots = Array.from(document.querySelectorAll('.fp-step-dot'));
+    const frontFaces = Array.from(document.querySelectorAll('.fp-panel .fp-face-front'));
+
+    let currentStep = 0;
+    let targetGoal = 0;
+    let isAnimating = false;
+    let sequenceTimers = [];
+    let soundEnabled = true;
+    let audioCtx = null;
+    let onCompleteCallback = null;
+    let currentReceiverName = 'Tu amigo secreto';
+
+    const STEP_DELAY = 460;
+
+    function buildInteriorMarkup(nameValue) {
+      const displayName = (nameValue || '').trim() || 'Tu amigo secreto';
+      const isLong = displayName.length > 13;
+
+      return `
+        <div class="fp-sheet-viewport">
+          <div class="fp-note-inner">
+            <span class="fp-note-label">Te tocó:</span>
+            <span class="fp-note-name ${isLong ? 'is-long' : ''}">${displayName}</span>
+            <svg class="fp-note-underline" viewBox="0 0 200 18" fill="none" aria-hidden="true">
+              <path
+                d="M6 12 C 52 5, 134 4, 194 11"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+              />
+            </svg>
+            <svg class="fp-note-doodle" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 3.5 L13.4 9.2 L19 10.6 L13.4 12 L12 17.8 L10.6 12 L5 10.6 L10.6 9.2 Z"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </div>
+        </div>
+      `;
+    }
+
+    function updatePaperName(name) {
+      currentReceiverName = name || 'Tu amigo secreto';
+      frontFaces.forEach((face) => {
+        face.innerHTML = buildInteriorMarkup(currentReceiverName);
+      });
+      if (revealedNameLabel) {
+        revealedNameLabel.textContent = currentReceiverName;
+      }
+    }
+
+    // Procedural Web Audio rustle sound
+    function playPaperRustle(opening = true) {
+      if (!soundEnabled) return;
+      try {
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioClass) return;
+        if (!audioCtx) audioCtx = new AudioClass();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const duration = 0.24;
+        const sampleRate = audioCtx.sampleRate;
+        const bufferSize = Math.floor(sampleRate * duration);
+        const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+        const data = buffer.getChannelData(0);
+
+        let lastOut = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          lastOut = (lastOut + 0.08 * white) / 1.08;
+          const env = Math.sin((i / bufferSize) * Math.PI);
+          data[i] = lastOut * env * 2.4;
+        }
+
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(opening ? 1450 : 1050, audioCtx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(
+          opening ? 2400 : 800,
+          audioCtx.currentTime + duration
+        );
+        filter.Q.value = 1.2;
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(0.001, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.12, audioCtx.currentTime + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+        source.start();
+      } catch (err) {}
+    }
+
+    function clearSequence() {
+      sequenceTimers.forEach((id) => clearTimeout(id));
+      sequenceTimers = [];
+      isAnimating = false;
+    }
+
+    function applyStep(step, playSound = true) {
+      const prevStep = currentStep;
+      currentStep = Math.max(0, Math.min(3, step));
+
+      paperRig.classList.toggle('open-1', currentStep >= 1);
+      paperRig.classList.toggle('open-2', currentStep >= 2);
+      paperRig.classList.toggle('open-3', currentStep >= 3);
+
+      if (playSound && currentStep !== prevStep) {
+        playPaperRustle(currentStep > prevStep);
+      }
+
+      updateUI();
+    }
+
+    function updateUI() {
+      stepDots.forEach((dot) => {
+        const idx = Number(dot.dataset.dot);
+        dot.classList.toggle('active', currentStep >= idx);
+      });
+
+      if (currentStep === 0 && !isAnimating) {
+        hintText.textContent = 'Haz clic en el papel para abrirlo';
+        paperHitbox.setAttribute('aria-label', 'Haz clic en el papel para abrirlo');
+        actionBox?.classList.add('hidden');
+      } else if (currentStep === 3 && !isAnimating) {
+        hintText.textContent = 'Haz clic para volver a doblarlo';
+        paperHitbox.setAttribute('aria-label', 'Haz clic para volver a doblarlo');
+        actionBox?.classList.remove('hidden');
+      } else if (targetGoal === 3) {
+        hintText.textContent = `Desdoblando (${currentStep}/3)...`;
+      } else {
+        hintText.textContent = `Doblando (${3 - currentStep}/3)...`;
+      }
+    }
+
+    function animateToStep(targetStep) {
+      clearSequence();
+      targetGoal = targetStep;
+
+      if (currentStep === targetStep) {
+        updateUI();
+        return;
+      }
+
+      isAnimating = true;
+      const direction = targetStep > currentStep ? 1 : -1;
+      const totalSteps = Math.abs(targetStep - currentStep);
+
+      for (let i = 1; i <= totalSteps; i++) {
+        const nextStep = currentStep + direction * i;
+        const delay = (i - 1) * STEP_DELAY;
+
+        const timerId = setTimeout(() => {
+          if (i === totalSteps) {
+            isAnimating = false;
+          }
+          applyStep(nextStep, true);
+        }, delay);
+
+        sequenceTimers.push(timerId);
+      }
+    }
+
+    function togglePaper() {
+      const nextGoal = isAnimating
+        ? (targetGoal === 3 ? 0 : 3)
+        : (currentStep < 3 ? 3 : 0);
+      animateToStep(nextGoal);
+    }
+
+    paperHitbox.addEventListener('click', togglePaper);
+    paperHitbox.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        togglePaper();
+      }
+    });
+
+    paperHitbox.addEventListener('pointerenter', (e) => {
+      if (e.pointerType !== 'touch') {
+        paperRig.classList.add('is-hovered');
+      }
+    });
+
+    paperHitbox.addEventListener('pointerleave', () => {
+      paperRig.classList.remove('is-hovered');
+    });
+
+    soundBtn?.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      soundBtn.setAttribute('aria-pressed', String(soundEnabled));
+      soundOn.classList.toggle('hidden', !soundEnabled);
+      soundOff.classList.toggle('hidden', soundEnabled);
+    });
+
+    stage?.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
+      const rect = stage.getBoundingClientRect();
+      const nx = (e.clientX - rect.left) / rect.width - 0.5;
+      const ny = (e.clientY - rect.top) / rect.height - 0.5;
+      tiltWrapper.style.transform = `rotateX(${(-ny * 7).toFixed(2)}deg) rotateY(${(nx * 8).toFixed(2)}deg)`;
+    });
+
+    stage?.addEventListener('pointerleave', () => {
+      tiltWrapper.style.transform = 'rotateX(0deg) rotateY(0deg)';
+    });
+
+    function closeModal() {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      clearSequence();
+      applyStep(0, false);
+      if (onCompleteCallback) {
+        onCompleteCallback();
+        onCompleteCallback = null;
+      }
+    }
+
+    closeBtn?.addEventListener('click', closeModal);
+    viewWishlistBtn?.addEventListener('click', closeModal);
+
+    // Escape key to close modal
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+        closeModal();
+      }
+    });
+
+    // Public window API to open modal from anywhere
+    window.openFoldedPaperModal = function (options) {
+      const { name, cardNumber, autoOpen = true, onComplete } = options || {};
+      onCompleteCallback = onComplete || null;
+
+      if (cardNumber && modalTitle) {
+        modalTitle.textContent = `Papelito #${cardNumber}`;
+      } else if (modalTitle) {
+        modalTitle.textContent = 'Papelito del sorteo';
+      }
+
+      updatePaperName(name);
+      clearSequence();
+      applyStep(0, false);
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+
+      // Auto start unfolding sequence after short initial reveal
+      if (autoOpen) {
+        setTimeout(() => {
+          animateToStep(3);
+        }, 320);
+      }
+    };
+  })();
+</script>
